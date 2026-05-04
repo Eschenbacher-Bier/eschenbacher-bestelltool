@@ -1,0 +1,444 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Eschenbacher Bestelltool V11</title>
+<style>
+:root{--bg:#EFE1C8;--card:#fffaf0;--dark:#222;--line:#d7b983;--accent:#b88a45}
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:#111}
+.app{max-width:560px;margin:0 auto;padding:18px}
+.header{text-align:center;margin:10px 0 18px}
+.logo-text{font-size:28px;font-weight:900;letter-spacing:1px;color:#222}
+.sub{font-size:13px;letter-spacing:6px;font-weight:700;color:#8b6a35;margin-top:3px}
+h1{font-size:24px;margin:16px 0 4px}.small{color:#555;font-size:14px}
+.card{background:rgba(255,250,240,.9);border:1px solid var(--line);border-radius:16px;padding:14px;margin:12px 0;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.tabs{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.tab{border:1px solid var(--line);border-radius:12px;padding:13px;background:#fff7e8;font-weight:700}
+.tab.active{background:#222;color:#fff}
+label{display:block;font-weight:700;margin:10px 0 6px}
+input,textarea{width:100%;padding:13px;border:1px solid var(--line);border-radius:12px;background:#fff;font-size:15px}
+textarea{min-height:75px;resize:vertical}
+.customer-result{border:1px solid var(--line);background:#fff;border-radius:12px;padding:12px;margin:8px 0;cursor:pointer}
+.customer-result b{display:block}.customer-result span{color:#555;font-size:13px}
+.selected{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px;margin-top:10px}
+.group-head{font-weight:900;margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:12px;background:#fff;cursor:pointer;display:flex;justify-content:space-between;align-items:center}
+.group-count{font-size:12px;color:#555;font-weight:700}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid #e2cfaa;padding:11px 0}
+.row:last-child{border-bottom:none}
+.article{min-width:0}.article b{display:block;font-size:15px}.article small{display:block;color:#6c6c6c;margin-top:2px}
+.qty{display:flex;align-items:center;border:1px solid #ccb27d;border-radius:10px;overflow:hidden;background:#fff;flex-shrink:0}
+.qty button{width:40px;height:40px;border:0;background:#fff;font-size:22px;cursor:pointer}
+.qty-input{width:54px;height:40px;border:0;border-left:1px solid #ccb27d;border-right:1px solid #ccb27d;text-align:center;font-weight:700;font-size:16px;padding:0;border-radius:0;background:#fff}
+.btn{width:100%;border:0;border-radius:14px;padding:15px;margin-top:12px;background:#222;color:#fff;font-weight:900;font-size:16px}
+.btn.secondary{background:#fff;color:#222;border:1px solid var(--line)}
+.summary-line{background:#fff;border:1px solid #ead8b4;border-radius:10px;padding:10px;margin:7px 0}
+pre{white-space:pre-wrap;background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px;font-size:13px;line-height:1.35;max-height:360px;overflow:auto}
+.hidden{display:none}.notice{font-size:13px;color:#666;margin-top:8px}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <div class="logo-text">ESCHENBACHER</div>
+    <div class="sub">PRIVATBRAUEREI</div>
+    <h1>Bestelltool</h1>
+    <div class="small">Testversion V11 · Zielmail: info@eschenbacher.de</div>
+  </div>
+
+  <div class="card">
+    <div class="tabs">
+      <button id="viewOrder" class="tab active">Bestellung</button>
+      <button id="viewAdmin" class="tab">Einstellungen / Konzept</button>
+    </div>
+  </div>
+
+  <div id="orderView">
+
+  <div class="card">
+    <div class="tabs">
+      <button id="tabExisting" class="tab active">Bestandskunde</button>
+      <button id="tabNew" class="tab">Neukunde</button>
+    </div>
+
+    <div id="existingBox">
+      <label>Kunde suchen</label>
+      <input id="customerSearch" placeholder="Mind. 2 Zeichen: Name, Ort oder Kundennummer">
+      <div class="notice">Die Kundenliste erscheint erst während der Suche.</div>
+      <div id="customerResults"></div>
+      <div id="selectedCustomer" class="selected hidden"></div>
+    </div>
+
+    <div id="newBox" class="hidden">
+      <label>Firma</label><input id="newCompany">
+      <label>Ansprechpartner</label><input id="newContact">
+      <label>Straße</label><input id="newStreet">
+      <label>PLZ</label><input id="newZip">
+      <label>Ort</label><input id="newCity">
+      <label>Telefon</label><input id="newPhone">
+      <label>E-Mail</label><input id="newEmail">
+    </div>
+  </div>
+
+  <div class="card">
+    <label>Lieferwunsch</label>
+    <input id="delivery" value="Nächster regulärer Liefertag">
+  </div>
+
+  <div class="card">
+    <label>Artikel suchen</label>
+    <input id="articleSearch" placeholder="Artikelnummer oder Sorte suchen">
+    <div id="articleGroups"></div>
+  </div>
+
+  <div class="card">
+    <label>Bemerkung</label>
+    <textarea id="note" placeholder="Optional, z. B. bitte früh liefern"></textarea>
+    <label>CC-E-Mail</label>
+    <input id="cc" placeholder="Optional">
+    <label>Aufgenommen von</label>
+    <input id="sender" value="Außendienst">
+  </div>
+
+  <button id="previewBtn" class="btn">Bestellung prüfen</button>
+
+  <div id="summaryCard" class="card hidden">
+    <h2>Zusammenfassung</h2>
+    <div id="summary"></div>
+    <h3>Mail-Vorschau</h3>
+    <pre id="mailPreview"></pre>
+    <button id="pdfBtn" class="btn">PDF-Vorschau öffnen</button>
+    <button id="realSendInfoBtn" class="btn">Bestellung senden</button>
+    <p class="notice">Noch nicht aktiv: Im nächsten Schritt wird hier der echte Versand per No-Reply-Mail mit PDF-Anhang an info@eschenbacher.de eingebunden.</p>
+    <div id="sendResult" class="summary-line hidden"></div>
+  </div>
+  </div>
+
+  <div id="adminView" class="hidden">
+    <div class="card">
+      <h2>⚙️ Einstellungen / Konzept</h2>
+      <p class="small">Dieser Bereich zeigt, wie die spätere Verwaltung gedacht ist. In der Testversion ist das noch nicht vollständig editierbar.</p>
+    </div>
+
+    <div class="card">
+      <h3>Mail-Empfänger</h3>
+      <label>Hauptempfänger</label>
+      <input value="info@eschenbacher.de" readonly>
+      <label>Automatische Kopie später</label>
+      <input value="Vertriebsleiter / weitere interne Adresse" readonly>
+      <p class="notice">In der finalen Version können feste CC-Empfänger zentral hinterlegt werden. Der Außendienst muss diese nicht jedes Mal manuell eintragen.</p>
+    </div>
+
+    <div class="card">
+      <h3>Kundenpflege</h3>
+      <p class="small">Bestandskunden werden aus dem Kundenstamm gezogen. Neukunden können bereits im Formular erfasst werden.</p>
+      <p class="notice">Final: Kunden zentral anlegen, bearbeiten, deaktivieren und suchen.</p>
+    </div>
+
+    <div class="card">
+      <h3>Artikelpflege</h3>
+      <p class="small">Artikel werden zentral gepflegt, inkl. Artikelnummer, Bezeichnung und Gruppe.</p>
+      <div class="summary-line"><b>9 · Eschenbacher Pilsner</b><br>Gruppe: Flaschenbier</div>
+      <div class="summary-line"><b>21 · Eschenbacher Weißbier</b><br>Gruppe: Flaschenbier</div>
+      <div class="summary-line"><b>421 · Weissbier Fass 30 Ltr.</b><br>Gruppe: Fassbier</div>
+      <p class="notice">Final: neue Artikel anlegen, bestehende ändern, Artikel ausblenden.</p>
+    </div>
+
+    <div class="card">
+      <h3>Ausbaustufen</h3>
+      <div class="summary-line"><b>Phase 1</b><br>Online-Test mit echter Bedienlogik und Mailversand.</div>
+      <div class="summary-line"><b>Phase 2</b><br>Datenbank: Kunden, Artikel und Bestellungen zentral speichern.</div>
+      <div class="summary-line"><b>Phase 3</b><br>Admin-Bereich: Kunden, Artikel, Mail-Empfänger und Benutzer verwalten.</div>
+      <div class="summary-line"><b>Phase 4</b><br>Login, Rechte, Bestellhistorie und optional Kundenportal.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const targetMail = "info@eschenbacher.de";
+const customers = [
+ {id:"149659", name:"Markgrafen Getränkevertrieb", name3:"Bad Steben", city:"Bad Steben", zip:"95138", street:"Bahnhofstraße 12"},
+ {id:"149655", name:"Markgrafen Getränkevertrieb", name3:"Marktredwitz", city:"Marktredwitz", zip:"95615", street:"Ludwig-Uhland-Straße 14"},
+ {id:"149658", name:"Markgrafen Getränkevertrieb", name3:"Naila", city:"Naila", zip:"95119", street:"Froschgrüner Str. 9"},
+ {id:"149657", name:"Markgrafen Getränkevertrieb", name3:"Oberkotzau", city:"Oberkotzau", zip:"95145", street:"Hofer Str. 86a"},
+ {id:"149640", name:"Markgrafen-Markt", name3:"Getränkemarkt Auerbach", city:"Auerbach", zip:"91275", street:"Leonie 4"},
+ {id:"111274", name:"Markgrafen-Markt", name3:"GM - Bad Staffelstein", city:"Bad Staffelstein", zip:"96231", street:"Lichtenfelser Str. 36"},
+ {id:"111218", name:"Markgrafen-Markt", name3:"Getränkemarkt Bamberg", city:"Bamberg", zip:"96052", street:"Kärntner Str. 1"},
+ {id:"110969", name:"Markgrafen-Getränkemarkt Ebern", name3:"", city:"Ebern", zip:"96106", street:"Alte Ziegelei 5"},
+ {id:"149639", name:"Markgrafen-Markt", name3:"Getränkemarkt Grafenwöhr", city:"Grafenwöhr", zip:"92655", street:"Bahnhofstr. 60a"},
+ {id:"149632", name:"MGV Markt Coburg", name3:"Markgrafen Neustadt bei Coburg", city:"Neustadt bei Coburg", zip:"96465", street:"Am Moos 18"}
+];
+
+const products = [
+ {cat:"bottle", id:"40", name:"29er Pils"},
+ {cat:"bottle", id:"19", name:"Eschenbacher Dunkel"},
+ {cat:"bottle", id:"6", name:"Eschenbacher Hell"},
+ {cat:"bottle", id:"8", name:"Eschenbacher Kellerbier"},
+ {cat:"bottle", id:"7", name:"Eschenbacher Lager"},
+ {cat:"bottle", id:"11", name:"Eschenbacher Märzen"},
+ {cat:"bottle", id:"9", name:"Eschenbacher Pilsner"},
+ {cat:"bottle", id:"21", name:"Eschenbacher Weißbier"},
+ {cat:"bottle", id:"41", name:"Franz Josef Hell"},
+ {cat:"bottle", id:"2", name:"Grafensteiner Export"},
+ {cat:"bottle", id:"3", name:"Grafensteiner Hell"},
+ {cat:"bottle", id:"1", name:"Grafensteiner Pils"},
+ {cat:"bottle", id:"16", name:"Wallburg Export"},
+ {cat:"bottle", id:"17", name:"Wallburg Hell"},
+ {cat:"bottle", id:"18", name:"Wallburg Pilsner"},
+ {cat:"keg", id:"301", name:"Pilsner Fass 15 Ltr."},
+ {cat:"keg", id:"310", name:"Pilsner Fass 20 Ltr."},
+ {cat:"keg", id:"401", name:"Pilsner Fass 30 Ltr."},
+ {cat:"keg", id:"402", name:"Schwarzbier Faß 30 Ltr."},
+ {cat:"keg", id:"403", name:"Lager Fass 15 Ltr."},
+ {cat:"keg", id:"405", name:"Lager Fass 20 Ltr."},
+ {cat:"keg", id:"407", name:"Export Fass 30 Ltr."},
+ {cat:"keg", id:"421", name:"Weissbier Fass 30 Ltr."},
+ {cat:"keg", id:"480", name:"Kellerbier Fass 20 Liter"},
+ {cat:"keg", id:"481", name:"Kellerbier Fass 30 Liter"},
+ {cat:"keg", id:"501", name:"Pilsner Fass 50 Liter"},
+ {cat:"keg", id:"507", name:"Export Fass 50 Liter"},
+ {cat:"keg", id:"412", name:"Franz Josef Fass 15 Liter"},
+ {cat:"keg", id:"413", name:"Franz Josef Fass 20 Liter"},
+ {cat:"keg", id:"414", name:"Franz Josef Fass 30 Liter"},
+ {cat:"keg", id:"415", name:"Franz Josef Fass 50 Liter"},
+ {cat:"keg", id:"439", name:"Eschenbach Hell Fass 15 Liter"}
+];
+
+let mode = "existing";
+let selectedCustomer = null;
+let qty = {};
+let collapsed = { core:false, otherBottle:true, keg:true };
+
+const $ = id => document.getElementById(id);
+
+$("viewOrder").onclick = () => {
+  $("orderView").classList.remove("hidden");
+  $("adminView").classList.add("hidden");
+  $("viewOrder").classList.add("active");
+  $("viewAdmin").classList.remove("active");
+};
+$("viewAdmin").onclick = () => {
+  $("orderView").classList.add("hidden");
+  $("adminView").classList.remove("hidden");
+  $("viewOrder").classList.remove("active");
+  $("viewAdmin").classList.add("active");
+};
+
+function setMode(next){
+ mode = next;
+ $("tabExisting").classList.toggle("active", next==="existing");
+ $("tabNew").classList.toggle("active", next==="new");
+ $("existingBox").classList.toggle("hidden", next!=="existing");
+ $("newBox").classList.toggle("hidden", next!=="new");
+}
+$("tabExisting").onclick=()=>setMode("existing");
+$("tabNew").onclick=()=>setMode("new");
+
+function renderCustomerSearch(){
+ const q = $("customerSearch").value.trim().toLowerCase();
+ const box = $("customerResults");
+ box.innerHTML = "";
+ if(q.length < 2 || selectedCustomer) return;
+ customers.filter(c => `${c.id} ${c.name} ${c.name3} ${c.city} ${c.zip} ${c.street}`.toLowerCase().includes(q)).slice(0,10).forEach(c=>{
+   const div = document.createElement("div");
+   div.className = "customer-result";
+   div.innerHTML = `<b>${c.id} · ${c.name}</b><span>${c.name3 ? c.name3 + " · " : ""}${c.zip} ${c.city}, ${c.street}</span>`;
+   div.onclick = () => selectCustomer(c);
+   box.appendChild(div);
+ });
+}
+function selectCustomer(c){
+ selectedCustomer = c;
+ $("customerSearch").value = "";
+ $("customerResults").innerHTML = "";
+ $("selectedCustomer").classList.remove("hidden");
+ $("selectedCustomer").innerHTML = `<b>Ausgewählter Kunde</b><br>${c.id} · ${c.name}<br><span>${c.name3 ? c.name3 + " · " : ""}${c.zip} ${c.city}, ${c.street}</span><button class="btn secondary" onclick="changeCustomer()">Kunde ändern</button>`;
+}
+window.changeCustomer = function(){
+ selectedCustomer = null;
+ $("selectedCustomer").classList.add("hidden");
+ $("selectedCustomer").innerHTML = "";
+ $("customerSearch").focus();
+}
+$("customerSearch").addEventListener("input", renderCustomerSearch);
+
+function groupOf(p){
+ if(p.cat === "keg") return "keg";
+ if(p.name.startsWith("Eschenbacher") || p.name.startsWith("Franz Josef")) return "core";
+ return "otherBottle";
+}
+function groupLabel(g){
+ if(g==="core") return "Eschenbacher & Franz Josef Flaschenbier";
+ if(g==="otherBottle") return "Weitere Flaschenbiere";
+ return "Fassbier";
+}
+function toggleGroup(g){
+ collapsed[g] = !collapsed[g];
+ renderProducts();
+}
+function productRow(p){
+ const div = document.createElement("div");
+ div.className = "row";
+ div.innerHTML = `<div class="article"><b>${p.id} · ${p.name}</b><small>${p.cat==="bottle" ? "Flaschenbier" : "Fassbier"}</small></div>
+   <div class="qty"><button type="button" onclick="dec('${p.id}')">−</button><input class="qty-input" inputmode="numeric" pattern="[0-9]*" value="${qty[p.id]||0}" onchange="setQty('${p.id}', this.value)" onfocus="this.select()"><button type="button" onclick="inc('${p.id}')">+</button></div>`;
+ return div;
+}
+function renderProducts(){
+ const q = $("articleSearch").value.trim().toLowerCase();
+ const groups = ["core","otherBottle","keg"];
+ const wrap = $("articleGroups");
+ wrap.innerHTML = "";
+
+ groups.forEach(g=>{
+   let items = products
+     .filter(p => groupOf(p)===g)
+     .filter(p => `${p.id} ${p.name}`.toLowerCase().includes(q))
+     .sort((a,b)=>a.name.localeCompare(b.name));
+
+   if(q && items.length === 0) return;
+
+   const head = document.createElement("div");
+   head.className = "group-head";
+   const isOpen = q ? true : !collapsed[g];
+   head.innerHTML = `<span>${isOpen ? "▾" : "▸"} ${groupLabel(g)}</span><span class="group-count">${items.length} Artikel</span>`;
+   head.onclick = ()=>toggleGroup(g);
+   wrap.appendChild(head);
+
+   if(isOpen){
+     items.forEach(p => wrap.appendChild(productRow(p)));
+   }
+ });
+}
+window.inc = id => { qty[id]=(qty[id]||0)+1; renderProducts(); };
+window.dec = id => { qty[id]=Math.max((qty[id]||0)-1,0); renderProducts(); };
+window.setQty = (id, value) => {
+  const parsed = parseInt(String(value).replace(/\D/g, ""), 10);
+  qty[id] = Number.isFinite(parsed) ? Math.max(parsed, 0) : 0;
+  renderProducts();
+};
+$("articleSearch").addEventListener("input", renderProducts);
+renderProducts();
+
+function getCustomerText(){
+ if(mode==="existing"){
+   if(!selectedCustomer) return "Kein Bestandskunde ausgewählt";
+   const c=selectedCustomer;
+   return `Kundennummer: ${c.id}\nKunde: ${c.name}\nZusatz/Markt: ${c.name3 || "-"}\nAdresse: ${c.zip} ${c.city}, ${c.street}`;
+ }
+ return `NEUKUNDE\nFirma: ${$("newCompany").value || "-"}\nAnsprechpartner: ${$("newContact").value || "-"}\nAdresse: ${$("newZip").value || "-"} ${$("newCity").value || "-"}, ${$("newStreet").value || "-"}\nTelefon: ${$("newPhone").value || "-"}\nE-Mail: ${$("newEmail").value || "-"}`;
+}
+function orderItems(){
+ return products.filter(p => (qty[p.id]||0)>0).map(p=>({...p, amount:qty[p.id]}));
+}
+function buildMail(){
+ const items = orderItems();
+ return `Neue Bestellung über Außendienst-Tool\n\n${getCustomerText()}\n\nLieferwunsch:\n${$("delivery").value || "-"}\n\nBestellung:\n${items.length ? items.map(i => `${i.amount}x ${i.name} | Art.-Nr. ${i.id}`).join("\n") : "Keine Artikel erfasst"}\n\nBemerkung:\n${$("note").value || "-"}\n\nAufgenommen von:\n${$("sender").value || "-"}\n\nCC:\n${$("cc").value || "-"}`;
+}
+$("previewBtn").onclick = () => {
+ const items = orderItems();
+ $("summaryCard").classList.remove("hidden");
+ $("summary").innerHTML = items.length ? items.map(i=>`<div class="summary-line"><b>${i.amount}x ${i.name}</b><br>Art.-Nr. ${i.id}</div>`).join("") : "<p>Keine Artikel erfasst.</p>";
+ $("mailPreview").textContent = buildMail();
+ window.scrollTo({top:document.body.scrollHeight, behavior:"smooth"});
+};
+
+function buildPdfHtml(){
+ const items = orderItems();
+ const customerHtml = mode==="existing" && selectedCustomer
+   ? `<p><b>Kundennummer:</b> ${selectedCustomer.id}<br>
+      <b>Kunde:</b> ${selectedCustomer.name}<br>
+      <b>Zusatz/Markt:</b> ${selectedCustomer.name3 || "-"}<br>
+      <b>Adresse:</b> ${selectedCustomer.zip} ${selectedCustomer.city}, ${selectedCustomer.street}</p>`
+   : `<p><b>NEUKUNDE</b><br>
+      <b>Firma:</b> ${$("newCompany").value || "-"}<br>
+      <b>Ansprechpartner:</b> ${$("newContact").value || "-"}<br>
+      <b>Adresse:</b> ${$("newZip").value || "-"} ${$("newCity").value || "-"}, ${$("newStreet").value || "-"}<br>
+      <b>Telefon:</b> ${$("newPhone").value || "-"}<br>
+      <b>E-Mail:</b> ${$("newEmail").value || "-"}</p>`;
+
+ const rows = items.length
+   ? items.map(i => `<tr><td>${i.amount}</td><td>${i.id}</td><td>${i.name}</td></tr>`).join("")
+   : `<tr><td colspan="3">Keine Artikel erfasst</td></tr>`;
+
+ return `<!doctype html>
+ <html lang="de">
+ <head>
+ <meta charset="utf-8">
+ <title>Bestellung Außendienst</title>
+ <style>
+   body{font-family:Arial,Helvetica,sans-serif;margin:34px;color:#222}
+   .head{border-bottom:3px solid #d7b983;padding-bottom:14px;margin-bottom:24px}
+   .brand{font-size:30px;font-weight:900;letter-spacing:1px}
+   .sub{font-size:13px;letter-spacing:5px;color:#8b6a35;font-weight:700;margin-top:4px}
+   h1{font-size:22px;margin:24px 0 10px}
+   h2{font-size:16px;margin-top:22px;border-bottom:1px solid #ddd;padding-bottom:6px}
+   table{width:100%;border-collapse:collapse;margin-top:10px}
+   th{background:#222;color:white;text-align:left;padding:9px}
+   td{border:1px solid #ccc;padding:9px}
+   .note{background:#f6f0e4;border:1px solid #d7b983;padding:10px;border-radius:6px}
+   .footer{margin-top:34px;font-size:12px;color:#666;border-top:1px solid #ddd;padding-top:10px}
+   @media print{button{display:none} body{margin:24px}}
+ </style>
+ </head>
+ <body>
+   <div class="head">
+     <div class="brand">ESCHENBACHER</div>
+     <div class="sub">PRIVATBRAUEREI</div>
+   </div>
+
+   <h1>Bestellung Außendienst</h1>
+
+   <h2>Kunde</h2>
+   ${customerHtml}
+
+   <h2>Lieferwunsch</h2>
+   <p>${$("delivery").value || "-"}</p>
+
+   <h2>Bestellung</h2>
+   <table>
+     <thead><tr><th style="width:80px">Menge</th><th style="width:100px">Art.-Nr.</th><th>Artikel</th></tr></thead>
+     <tbody>${rows}</tbody>
+   </table>
+
+   <h2>Bemerkung</h2>
+   <div class="note">${$("note").value || "-"}</div>
+
+   <h2>Aufgenommen von</h2>
+   <p>${$("sender").value || "-"}</p>
+
+   <h2>Systemhinweis</h2>
+   <p>Diese Bestellung wurde automatisch durch das Eschenbacher Bestelltool erzeugt.<br>
+   Bitte nicht auf diese E-Mail antworten.</p>
+
+   <div class="footer">
+     Automatisch erzeugt durch das Eschenbacher Bestelltool · Zielmail: info@eschenbacher.de<br>Bitte nicht auf diese E-Mail antworten.
+   </div>
+
+   <button onclick="window.print()" style="margin-top:24px;padding:12px 18px;font-weight:bold">Drucken / als PDF speichern</button>
+ </body>
+ </html>`;
+}
+
+$("pdfBtn").onclick = () => {
+ const win = window.open("", "_blank");
+ win.document.write(buildPdfHtml());
+ win.document.close();
+};
+
+
+
+$("realSendInfoBtn").onclick = () => {
+ const result = $("sendResult");
+ result.classList.remove("hidden");
+ result.innerHTML = `
+   <b>ℹ️ Versand noch nicht aktiv</b><br><br>
+   Dieser Button wird in der nächsten technischen Ausbaustufe mit echtem Mailversand und PDF-Anhang verbunden.<br><br>
+   Ziel: <b>info@eschenbacher.de</b><br>
+   Art: <b>No-Reply-Systemmail mit PDF-Anhang</b>
+ `;
+};
+
+</script>
+</body>
+</html>
