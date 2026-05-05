@@ -1,43 +1,55 @@
 export default async function handler(req, res) {
   if (req.method !== "POST") {
-    return res.status(405).json({ message: "Method not allowed" });
+    return res.status(405).json({ success: false, message: "Method not allowed" });
   }
 
   try {
-    const { text, cc } = req.body;
+    const { subject, html, text, cc } = req.body || {};
 
-    const apiKey = process.env.RESEND_API_KEY;
-
-    if (!apiKey) {
-      return res.status(500).json({ message: "API Key fehlt!" });
+    if (!subject || !html) {
+      return res.status(400).json({ success: false, error: "Subject und HTML-Inhalt fehlen." });
     }
 
-    // 👉 CC aktuell deaktiviert (Resend Testmodus erlaubt nur eigene Mail)
-    const toEmail = "o.mahr@eschenbacher.de";
+    const ccList = Array.isArray(cc)
+      ? cc.map(mail => String(mail).trim()).filter(Boolean)
+      : [];
+
+    const payload = {
+      from: "Eschenbacher Bestelltool <noreply@mail.eschenbacherbier.de>",
+      to: ["info@eschenbacher.de"],
+      subject,
+      html,
+      text: text || "Neue Bestellung über das Eschenbacher Bestelltool."
+    };
+
+    if (ccList.length > 0) {
+      payload.cc = ccList;
+    }
 
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+        "Content-Type": "application/json"
       },
-      body: JSON.stringify({
-        from: "Bestelltool <onboarding@resend.dev>", // MUSS so bleiben im Testmodus!
-        to: [toEmail],
-        subject: "Neue Bestellung Außendienst",
-        text: text,
-      }),
+      body: JSON.stringify(payload)
     });
 
     const data = await response.json();
 
     if (!response.ok) {
-      return res.status(500).json({ message: data.message || "Fehler beim Senden" });
+      return res.status(response.status).json({
+        success: false,
+        error: data?.message || data?.error || "Resend konnte die E-Mail nicht senden.",
+        details: data
+      });
     }
 
-    return res.status(200).json({ message: "Mail erfolgreich gesendet!" });
-
+    return res.status(200).json({ success: true, data });
   } catch (error) {
-    return res.status(500).json({ message: "Serverfehler", error: error.message });
+    return res.status(500).json({
+      success: false,
+      error: error?.message || "Serverfehler beim Senden."
+    });
   }
 }
