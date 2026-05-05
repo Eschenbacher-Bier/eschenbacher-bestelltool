@@ -16,7 +16,7 @@ export default async function handler(req, res) {
 
     const payload = {
       from: "Eschenbacher Bestelltool <onboarding@resend.dev>",
-      to: ["info@eschenbacher.de"],
+      to: ["o.mahr@eschenbacher.de"],
       subject,
       html,
       text: text || "Neue Bestellung über das Eschenbacher Bestelltool."
