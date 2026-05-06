@@ -147,8 +147,8 @@ async function loadSheetData(){
   info.textContent = "Lade Kunden & Artikel über stabile Vercel-Google-Sheets-API...";
   info.style.color = "#666";
 
-  const customerResult = await safeLoadJson(customersUrl, "Kunden");
-  const productResult = await safeLoadJson(productsUrl, "Artikel");
+  const customersUrl = "/api/data?sheet=Kunden";
+  const productsUrl = "/api/data?sheet=Artikel";
 
   customers = customerResult.data.map(row => ({
     id: normalizeKey(row, ["Kundennr.", "Kundennr", "Kundennummer", "KdNr", "KDNR"]),
