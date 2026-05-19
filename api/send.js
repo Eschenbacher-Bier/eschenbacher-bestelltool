@@ -29,7 +29,9 @@ export default async function handler(req, res) {
     // Hier später einfach ergänzen:
     // "o.mahr@eschenbacher.de",
     // "dispo@domain.de"
-    const INTERNAL_CC = [];
+    const INTERNAL_CC = [
+      "o.mahr@eschenbacher.de"
+    ];
 
     // =========================================
     // CC AUS DEM FORMULAR
