@@ -1,1 +1,20 @@
-
+{
+  "name": "Eschenbacher Bestelltool",
+  "short_name": "Bestelltool",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#EFE1C8",
+  "theme_color": "#EFE1C8",
+  "icons": [
+    {
+      "src": "logo-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "logo-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
