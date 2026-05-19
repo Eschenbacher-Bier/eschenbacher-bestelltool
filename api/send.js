@@ -7,7 +7,13 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { subject, html, text, cc } = req.body || {};
+    const {
+      subject,
+      html,
+      text,
+      cc,
+      orderData
+    } = req.body || {};
 
     if (!subject || !html) {
       return res.status(400).json({
@@ -17,24 +23,18 @@ export default async function handler(req, res) {
     }
 
     // =========================================
-    // FESTE INTERNE EMPFÄNGER
+    // EMPFÄNGER
     // =========================================
 
-    // Hauptempfänger
     const INTERNAL_TO = [
       "info@eschenbacher.de"
     ];
 
     // Feste interne Kopien
-    // Hier später einfach ergänzen:
-    // "o.mahr@eschenbacher.de",
-    // "dispo@domain.de"
-    const INTERNAL_CC = [
-      "o.mahr@eschenbacher.de"
-    ];
+    const INTERNAL_CC = [];
 
     // =========================================
-    // CC AUS DEM FORMULAR
+    // CC AUS FORMULAR
     // =========================================
 
     const userCcList = Array.isArray(cc)
@@ -43,7 +43,6 @@ export default async function handler(req, res) {
           .filter(Boolean)
       : [];
 
-    // Doppelte verhindern
     const finalCcList = [
       ...new Set([
         ...INTERNAL_CC,
@@ -52,7 +51,7 @@ export default async function handler(req, res) {
     ];
 
     // =========================================
-    // RESEND PAYLOAD
+    // MAIL PAYLOAD
     // =========================================
 
     const payload = {
@@ -70,13 +69,12 @@ export default async function handler(req, res) {
         "Neue Bestellung über das Eschenbacher Bestelltool."
     };
 
-    // Nur setzen wenn vorhanden
     if (finalCcList.length > 0) {
       payload.cc = finalCcList;
     }
 
     // =========================================
-    // SENDEN
+    // MAIL SENDEN
     // =========================================
 
     const response = await fetch(
@@ -97,10 +95,6 @@ export default async function handler(req, res) {
 
     const data = await response.json();
 
-    // =========================================
-    // FEHLER
-    // =========================================
-
     if (!response.ok) {
       return res.status(response.status).json({
         success: false,
@@ -112,6 +106,37 @@ export default async function handler(req, res) {
 
         details: data
       });
+    }
+
+    // =========================================
+    // BESTELLUNG IN GOOGLE SHEETS SPEICHERN
+    // =========================================
+
+    if (process.env.SCRIPT_API_URL && orderData) {
+
+      try {
+
+        await fetch(process.env.SCRIPT_API_URL, {
+          method: "POST",
+
+          headers: {
+            "Content-Type": "application/json"
+          },
+
+          body: JSON.stringify({
+            type: "saveOrder",
+            orderData
+          })
+        });
+
+      } catch (sheetError) {
+
+        console.error(
+          "Mail gesendet, aber Speicherung in Google Sheets fehlgeschlagen:",
+          sheetError
+        );
+
+      }
     }
 
     // =========================================
