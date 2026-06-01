@@ -31,7 +31,9 @@ export default async function handler(req, res) {
     ];
 
     // Feste interne Kopien
-    const INTERNAL_CC = [];
+    const INTERNAL_CC = [
+      "o.mahr@eschenbacher.de"
+    ];
 
     // =========================================
     // CC AUS FORMULAR
