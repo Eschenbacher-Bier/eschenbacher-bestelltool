@@ -123,7 +123,7 @@ let products = [];
 let mode = "existing";
 let selectedCustomer = null;
 let qty = {};
-let collapsed = { core:false, otherBottle:true, keg:true, promo:true };
+let collapsed = { core:false, otherBottle:true, keg:true, afg:true, promo:true };
 
 const $ = id => document.getElementById(id);
 
@@ -168,7 +168,8 @@ async function loadSheetData(){
   products = productResult.data.map(row => {
     const category = normalizeKey(row, ["Kategorie", "Gruppe", "cat"]).toLowerCase();
     return {
-      cat: category.includes("fass") ? "keg" :
+      cat: category.includes("afg") ? "afg" :
+           category.includes("fass") ? "keg" :
            (category.includes("werbemittel") || category.includes("werbung") || category.includes("promo")) ? "promo" :
            "bottle",
       id: normalizeKey(row, ["ArtNr", "Artikelnr", "Art.Nr.", "Art.-Nr.", "Art Nr", "Artikelnummer"]),
@@ -240,6 +241,7 @@ $("customerSearch").addEventListener("input", renderCustomerSearch);
 
 function groupOf(p){
  if(p.cat === "keg") return "keg";
+  if(p.cat === "afg") return "afg";
  if(p.cat === "promo") return "promo";
  if((p.name || "").startsWith("Eschenbacher") || (p.name || "").startsWith("Franz Josef")) return "core";
  return "otherBottle";
@@ -248,6 +250,7 @@ function groupLabel(g){
  if(g==="core") return "Eschenbacher & Franz Josef Flaschenbier";
  if(g==="otherBottle") return "Weitere Flaschenbiere";
  if(g==="keg") return "Fassbier";
+  if(g==="afg") return "Alkoholfreie Getränke (AFG)";
  if(g==="promo") return "Werbemittel";
  return "Artikel";
 }
@@ -258,13 +261,13 @@ function toggleGroup(g){
 function productRow(p){
  const div = document.createElement("div");
  div.className = "row";
- div.innerHTML = `<div class="article"><b>${p.id} · ${p.name}</b><small>${p.cat==="keg" ? "Fassbier" : (p.cat==="promo" ? "Werbemittel" : "Flaschenbier")}</small></div>
+ div.innerHTML = `<div class="article"><b>${p.id} · ${p.name}</b><small>${p.cat==="keg" ? "Fassbier" : (p.cat==="promo" ? "Werbemittel" : (p.cat==="afg" ? "Alkoholfreies Getränk" : "Flaschenbier"))}</small></div>
    <div class="qty"><button type="button" onclick="dec('${p.id}')">−</button><input class="qty-input" inputmode="numeric" pattern="[0-9]*" value="${qty[p.id]||0}" onchange="setQty('${p.id}', this.value)" onfocus="this.select()"><button type="button" onclick="inc('${p.id}')">+</button></div>`;
  return div;
 }
 function renderProducts(){
  const q = $("articleSearch").value.trim().toLowerCase();
- const groups = ["core","otherBottle","keg","promo"];
+ const groups = ["core","otherBottle","keg","afg","promo"];
  const wrap = $("articleGroups");
  wrap.innerHTML = "";
 
