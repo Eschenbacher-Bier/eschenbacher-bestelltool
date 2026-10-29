@@ -471,14 +471,29 @@ async function syncPendingOrders(){
   const remaining = [];
   let sent = 0;
 
-  for(const item of pending){
-    try{
-      await sendPayload(item.payload);
-      sent++;
-    }catch(error){
-      remaining.push(item);
+  
+let anmeldungAbgelaufen = false;
+
+for (let i = 0; i < pending.length; i++) {
+  const item = pending[i];
+
+  try {
+    await sendPayload(item.payload);
+    sent++;
+
+  } catch (error) {
+    remaining.push(item);
+
+    if (error.code === "SESSION_EXPIRED") {
+      anmeldungAbgelaufen = true;
+
+      // Noch nicht bearbeitete Bestellungen behalten
+      remaining.push(...pending.slice(i + 1));
+      break;
     }
   }
+}
+
 
   savePendingOrders(remaining);
 
