@@ -669,8 +669,80 @@ function resetOrderForm(){
 $("resetBtn").onclick = resetOrderForm;
 
 
-updatePendingStatus();
-loadSheetData();
+
+async function pruefeAnmeldung() {
+  const loginBox = $("loginBox");
+  const bestellApp = $("bestellApp");
+  const status = $("loginStatus");
+
+  loginBox.classList.remove("hidden");
+  bestellApp.classList.add("hidden");
+  status.textContent = "Anmeldung wird geprüft...";
+
+  try {
+    const response = await fetch("/api/session", {
+      cache: "no-store"
+    });
+
+    if (!response.ok) {
+      throw new Error("Sitzungsprüfung fehlgeschlagen.");
+    }
+
+    const result = await response.json();
+
+    if (result.authenticated === true) {
+      loginBox.classList.add("hidden");
+      bestellApp.classList.remove("hidden");
+      status.textContent = "";
+
+      updatePendingStatus();
+      await loadSheetData();
+    } else {
+      status.textContent = "Bitte mit dem Mitarbeiterpasswort anmelden.";
+    }
+  } catch (error) {
+    status.textContent =
+      "Anmeldung konnte nicht geprüft werden. Bitte später erneut versuchen.";
+  }
+}
+
+$("loginForm").addEventListener("submit", async event => {
+  event.preventDefault();
+
+  const passwort = $("loginPassword").value;
+  const status = $("loginStatus");
+  const button = $("loginForm").querySelector("button");
+
+  button.disabled = true;
+  status.textContent = "Anmeldung läuft...";
+
+  try {
+    const response = await fetch("/api/login", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ password: passwort })
+    });
+
+    const result = await response.json();
+
+    if (!response.ok || !result.success) {
+      throw new Error(result.error || "Anmeldung fehlgeschlagen.");
+    }
+
+    $("loginPassword").value = "";
+    await pruefeAnmeldung();
+
+  } catch (error) {
+    status.textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
+});
+
+pruefeAnmeldung();
+
 </script>
 </body>
 </html>
