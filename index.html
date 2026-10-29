@@ -434,8 +434,21 @@ async function sendPayload(payload){
     data = await response.json();
   }catch(_){}
 
-  if(!response.ok || !data.success){
-    throw new Error(data.error || data.message || "Unbekannter Sendefehler");
+  
+if (response.status === 401) {
+  const error = new Error(
+    "Deine Anmeldung ist abgelaufen. Bitte melde dich erneut an."
+  );
+  error.code = "SESSION_EXPIRED";
+  throw error;
+}
+
+if (!response.ok || !data.success) {
+  throw new Error(
+    data.error || data.message || "Unbekannter Sendefehler"
+  );
+}
+
   }
 
   return data;
