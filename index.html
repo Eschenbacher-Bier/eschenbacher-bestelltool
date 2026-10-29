@@ -38,8 +38,41 @@ pre{white-space:pre-wrap;background:#fff;border:1px solid var(--line);border-rad
 .hidden{display:none}
 </style>
 </head>
+
 <body>
-<div class="app">
+
+<div id="loginBox" class="app">
+  <div class="header">
+    <div class="logo-text">ESCHENBACHER</div>
+    <div class="sub">PRIVATBRAUEREI</div>
+    <h1>Bestelltool</h1>
+  </div>
+
+  <div class="card">
+    <h2>Mitarbeiteranmeldung</h2>
+    <p class="small">
+      Bitte mit dem gemeinsamen Mitarbeiterpasswort anmelden.
+    </p>
+
+    <form id="loginForm">
+      <label for="loginPassword">Passwort</label>
+      <input
+        id="loginPassword"
+        type="password"
+        autocomplete="current-password"
+        required
+      >
+      <button class="btn" type="submit">
+        Anmelden
+      </button>
+    </form>
+
+    <div id="loginStatus" class="notice"></div>
+  </div>
+</div>
+
+<div id="bestellApp" class="app hidden">
+
   <div class="header">
     <div class="logo-text">ESCHENBACHER</div>
     <div class="sub">PRIVATBRAUEREI</div>
