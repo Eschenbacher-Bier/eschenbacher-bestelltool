@@ -168,7 +168,9 @@ async function loadSheetData(){
   products = productResult.data.map(row => {
     const category = normalizeKey(row, ["Kategorie", "Gruppe", "cat"]).toLowerCase();
     return {
-      cat: category.includes("afg") ? "afg" :
+      
+cat: (category.includes("afg") || category.includes("alkoholfreie")) ? "afg" :
+
            category.includes("fass") ? "keg" :
            (category.includes("werbemittel") || category.includes("werbung") || category.includes("promo")) ? "promo" :
            "bottle",
