@@ -1,7 +1,21 @@
 
+import { istAngemeldet } from "./_auth.js";
+
 const ALLOWED_SHEETS = ["Kunden", "Artikel"];
 
+
 export default async function handler(req, res) {
+  res.setHeader("Cache-Control", "no-store");
+
+  if (!istAngemeldet(req)) {
+    return res.status(401).json({
+      success: false,
+      error: "Nicht angemeldet."
+    });
+  }
+
+  try {
+
   res.setHeader("Cache-Control", "no-store, max-age=0");
 
   if (req.method !== "GET") {
