@@ -3,10 +3,10 @@ import { istAngemeldet } from "./_auth.js";
 
 const ALLOWED_SHEETS = ["Kunden", "Artikel"];
 
-
 export default async function handler(req, res) {
-  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Cache-Control", "no-store, max-age=0");
 
+  // Anmeldung prüfen
   if (!istAngemeldet(req)) {
     return res.status(401).json({
       success: false,
@@ -14,10 +14,7 @@ export default async function handler(req, res) {
     });
   }
 
-  try {
-
-  res.setHeader("Cache-Control", "no-store, max-age=0");
-
+  // Nur GET-Anfragen erlauben
   if (req.method !== "GET") {
     return res.status(405).json({
       success: false,
@@ -45,6 +42,7 @@ export default async function handler(req, res) {
   }
 
   try {
+    // Stammdaten geschützt bei Google abrufen
     const response = await fetch(url, {
       method: "POST",
       headers: {
@@ -65,6 +63,7 @@ export default async function handler(req, res) {
       throw new Error("Stammdaten-API hat keine gültigen Daten geliefert");
     }
 
+    // Artikel für die bestehende Bestellmaske aufbereiten
     const data = sheet === "Artikel"
       ? result.data.map(artikel => ({
           ArtNr: artikel.ArtNr,
