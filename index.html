@@ -652,12 +652,26 @@ $("realSendInfoBtn").onclick = async () => {
  
 }catch(error){
 
+  
+}catch(error){
+
   if (error.code === "SESSION_EXPIRED") {
     result.textContent =
       "⚠️ Deine Anmeldung ist abgelaufen. Bitte melde dich erneut an. Deine bisherige Eingabe bleibt erhalten.";
 
     return;
   }
+
+  addPendingOrder(payload);
+
+  result.textContent =
+    "📦 Bestellung wurde im Offline-Puffer gespeichert. " +
+    "Sie konnte gerade nicht gesendet werden. " +
+    "Grund: " + (error.message || error);
+
+  $("resetBtn").classList.remove("hidden");
+}
+
 
   addPendingOrder(payload);
 
