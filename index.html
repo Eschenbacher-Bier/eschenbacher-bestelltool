@@ -399,6 +399,10 @@ $("pdfBtn").onclick = () => {
 
 const PENDING_ORDERS_KEY = "esb_pending_orders_v17";
 
+function neueBestellId() {
+  return crypto.randomUUID();
+}
+
 function getPendingOrders(){
   try{
     return JSON.parse(localStorage.getItem(PENDING_ORDERS_KEY) || "[]");
