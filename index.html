@@ -156,6 +156,7 @@ let products = [];
 let mode = "existing";
 let selectedCustomer = null;
 let qty = {};
+let aktuelleBestellId = null;  
 let collapsed = { core:false, otherBottle:true, keg:true, afg:true, promo:true };
 
 const $ = id => document.getElementById(id);
@@ -676,13 +677,18 @@ $("realSendInfoBtn").onclick = async () => {
 
  result.innerHTML = `<b>⏳ Bestellung wird gesendet...</b>`;
 
- const payload = {
-   subject: `Neue Bestellung – ${getCustomerNameForSubject()}`,
-   html: buildEmailHtml(),
-   text: buildMail(),
-   cc: parseEmailList($("cc").value),
-   orderData: getStructuredOrderData()
- };
+if (!aktuelleBestellId) {
+  aktuelleBestellId = neueBestellId();
+} 
+const payload = {
+  orderId: aktuelleBestellId,
+  subject: `Neue Bestellung – ${getCustomerNameForSubject()}`,
+  html: buildEmailHtml(),
+  text: buildMail(),
+  cc: parseEmailList($("cc").value),
+  orderData: getStructuredOrderData()
+};
+
 
  try{
    await sendPayload(payload);
