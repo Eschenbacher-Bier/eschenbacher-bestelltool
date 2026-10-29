@@ -497,6 +497,26 @@ for (let i = 0; i < pending.length; i++) {
 
   savePendingOrders(remaining);
 
+if (anmeldungAbgelaufen) {
+  $("bestellApp").classList.add("hidden");
+  $("loginBox").classList.remove("hidden");
+
+  $("loginStatus").textContent =
+    "Deine Anmeldung ist abgelaufen. Bitte melde dich erneut an.";
+
+  $("loginPassword").value = "";
+  $("loginPassword").focus();
+
+  if (result) {
+    result.textContent =
+      "Der Nachversand wurde unterbrochen. " +
+      sent + " Bestellung(en) wurden bestätigt. " +
+      remaining.length + " Bestellung(en) bleiben im Offline-Puffer.";
+  }
+
+  return;
+}
+
   if(result){
     if(remaining.length === 0){
       result.innerHTML = `<b>✅ Offline-Puffer gesendet</b><br>${sent} Bestellung(en) erfolgreich nachgesendet.`;
