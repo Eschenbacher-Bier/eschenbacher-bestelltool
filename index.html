@@ -649,11 +649,26 @@ $("realSendInfoBtn").onclick = async () => {
 
    result.innerHTML = `<b>✅ Bestellung wurde gesendet</b><br><br>An: info@eschenbacher.de<br>${payload.cc.length ? "CC: " + payload.cc.join(", ") + "<br>" : ""}<br>Betreff: ${payload.subject}<br><br>Du kannst jetzt direkt eine neue Bestellung starten.`;
    $("resetBtn").classList.remove("hidden");
- }catch(error){
-   addPendingOrder(payload);
-   result.innerHTML = `<b>📦 Bestellung wurde im Offline-Puffer gespeichert</b><br><br>Die Bestellung konnte gerade nicht gesendet werden und wurde lokal auf diesem Gerät gespeichert.<br>Bei Netzverbindung kann sie über „Jetzt senden“ im Offline-Puffer nachgesendet werden.<br><br>Grund: ${error.message || error}`;
-   $("resetBtn").classList.remove("hidden");
- }
+ 
+}catch(error){
+
+  if (error.code === "SESSION_EXPIRED") {
+    result.textContent =
+      "⚠️ Deine Anmeldung ist abgelaufen. Bitte melde dich erneut an. Deine bisherige Eingabe bleibt erhalten.";
+
+    return;
+  }
+
+  addPendingOrder(payload);
+
+  result.textContent =
+    "📦 Bestellung wurde im Offline-Puffer gespeichert. " +
+    "Sie konnte gerade nicht gesendet werden. " +
+    "Grund: " + (error.message || error);
+
+  $("resetBtn").classList.remove("hidden");
+}
+
 };
 
 
