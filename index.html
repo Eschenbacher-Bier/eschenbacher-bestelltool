@@ -161,6 +161,14 @@ let collapsed = { core:false, otherBottle:true, keg:true, afg:true, promo:true }
 
 const $ = id => document.getElementById(id);
 
+// Daten aus Tabellen und Formulareingaben vor HTML-Einfügung schützen.
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, character => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  })[character]);
+}
+
+
 function normalizeKey(obj, possibleKeys){
   for(const key of possibleKeys){
     if(obj[key] !== undefined && obj[key] !== null) return String(obj[key]).trim();
@@ -255,7 +263,7 @@ function renderCustomerSearch(){
  results.forEach(c=>{
    const div = document.createElement("div");
    div.className = "customer-result";
-   div.innerHTML = `<b>${c.id} · ${c.name}</b><span>${c.name3 ? c.name3 + " · " : ""}${c.zip} ${c.city}, ${c.street}</span>`;
+   div.innerHTML = `<b>${escapeHtml(c.id)} · ${escapeHtml(c.name)}</b><span>${escapeHtml(c.name3 ? c.name3 + " · " : "")}${escapeHtml(c.zip)} ${escapeHtml(c.city)}, ${escapeHtml(c.street)}</span>`;
    div.onclick = () => selectCustomer(c);
    box.appendChild(div);
  });
@@ -265,7 +273,7 @@ function selectCustomer(c){
  $("customerSearch").value = "";
  $("customerResults").innerHTML = "";
  $("selectedCustomer").classList.remove("hidden");
- $("selectedCustomer").innerHTML = `<b>Ausgewählter Kunde</b><br>${c.id} · ${c.name}<br><span>${c.name3 ? c.name3 + " · " : ""}${c.zip} ${c.city}, ${c.street}</span><button class="btn secondary" onclick="changeCustomer()">Kunde ändern</button>`;
+ $("selectedCustomer").innerHTML = `<b>Ausgewählter Kunde</b><br>${escapeHtml(c.id)} · ${escapeHtml(c.name)}<br><span>${escapeHtml(c.name3 ? c.name3 + " · " : "")}${escapeHtml(c.zip)} ${escapeHtml(c.city)}, ${escapeHtml(c.street)}</span><button class="btn secondary" onclick="changeCustomer()">Kunde ändern</button>`;
 }
 window.changeCustomer = function(){
  selectedCustomer = null;
@@ -295,12 +303,37 @@ function toggleGroup(g){
  renderProducts();
 }
 function productRow(p){
- const div = document.createElement("div");
- div.className = "row";
- div.innerHTML = `<div class="article"><b>${p.id} · ${p.name}</b><small>${p.cat==="keg" ? "Fassbier" : (p.cat==="promo" ? "Werbemittel" : (p.cat==="afg" ? "Alkoholfreies Getränk" : "Flaschenbier"))}</small></div>
-   <div class="qty"><button type="button" onclick="dec('${p.id}')">−</button><input class="qty-input" inputmode="numeric" pattern="[0-9]*" value="${qty[p.id]||0}" onchange="setQty('${p.id}', this.value)" onfocus="this.select()"><button type="button" onclick="inc('${p.id}')">+</button></div>`;
- return div;
+  const div = document.createElement("div");
+  div.className = "row";
+  const article = document.createElement("div");
+  article.className = "article";
+  const name = document.createElement("b");
+  name.textContent = `${p.id} · ${p.name}`;
+  const kind = document.createElement("small");
+  kind.textContent = p.cat === "keg" ? "Fassbier" : p.cat === "promo" ? "Werbemittel" : p.cat === "afg" ? "Alkoholfreies Getränk" : "Flaschenbier";
+  article.append(name, kind);
+  const quantity = document.createElement("div");
+  quantity.className = "qty";
+  const minus = document.createElement("button");
+  minus.type = "button";
+  minus.textContent = "−";
+  minus.onclick = () => window.dec(p.id);
+  const input = document.createElement("input");
+  input.className = "qty-input";
+  input.inputMode = "numeric";
+  input.pattern = "[0-9]*";
+  input.value = qty[p.id] || 0;
+  input.onchange = () => window.setQty(p.id, input.value);
+  input.onfocus = () => input.select();
+  const plus = document.createElement("button");
+  plus.type = "button";
+  plus.textContent = "+";
+  plus.onclick = () => window.inc(p.id);
+  quantity.append(minus, input, plus);
+  div.append(article, quantity);
+  return div;
 }
+
 function renderProducts(){
  const q = $("articleSearch").value.trim().toLowerCase();
  const groups = ["core","otherBottle","keg","afg","promo"];
@@ -369,7 +402,7 @@ function buildMail(){
 $("previewBtn").onclick = () => {
  const items = orderItems();
  $("summaryCard").classList.remove("hidden");
- $("summary").innerHTML = items.length ? items.map(i=>`<div class="summary-line"><b>${i.amount}x ${i.name}</b><br>Art.-Nr. ${i.id}</div>`).join("") : "<p>Keine Artikel erfasst.</p>";
+ $("summary").innerHTML = items.length ? items.map(i=>`<div class="summary-line"><b>${i.amount}x ${escapeHtml(i.name)}</b><br>Art.-Nr. ${escapeHtml(i.id)}</div>`).join("") : "<p>Keine Artikel erfasst.</p>";
  $("mailPreview").textContent = buildMail();
  window.scrollTo({top:document.body.scrollHeight, behavior:"smooth"});
 };
@@ -377,15 +410,15 @@ $("previewBtn").onclick = () => {
 function buildPdfHtml(){
  const items = orderItems();
  const customerHtml = mode==="existing" && selectedCustomer
-   ? `<p><b>Kundennummer:</b> ${selectedCustomer.id}<br><b>Kunde:</b> ${selectedCustomer.name}<br><b>Zusatz/Markt:</b> ${selectedCustomer.name3 || "-"}<br><b>Adresse:</b> ${selectedCustomer.zip} ${selectedCustomer.city}, ${selectedCustomer.street}</p>`
-   : `<p><b>NEUKUNDE</b><br><b>Firma:</b> ${$("newCompany").value || "-"}<br><b>Ansprechpartner:</b> ${$("newContact").value || "-"}<br><b>Adresse:</b> ${$("newZip").value || "-"} ${$("newCity").value || "-"}, ${$("newStreet").value || "-"}<br><b>Telefon:</b> ${$("newPhone").value || "-"}<br><b>E-Mail:</b> ${$("newEmail").value || "-"}</p>`;
- const rows = items.length ? items.map(i => `<tr><td>${i.amount}</td><td>${i.id}</td><td>${i.name}</td></tr>`).join("") : `<tr><td colspan="3">Keine Artikel erfasst</td></tr>`;
+   ? `<p><b>Kundennummer:</b> ${escapeHtml(selectedCustomer.id)}<br><b>Kunde:</b> ${escapeHtml(selectedCustomer.name)}<br><b>Zusatz/Markt:</b> ${escapeHtml(selectedCustomer.name3 || "-")}<br><b>Adresse:</b> ${escapeHtml(selectedCustomer.zip)} ${escapeHtml(selectedCustomer.city)}, ${escapeHtml(selectedCustomer.street)}</p>`
+   : `<p><b>NEUKUNDE</b><br><b>Firma:</b> ${escapeHtml($("newCompany").value || "-")}<br><b>Ansprechpartner:</b> ${escapeHtml($("newContact").value || "-")}<br><b>Adresse:</b> ${escapeHtml($("newZip").value || "-")} ${escapeHtml($("newCity").value || "-")}, ${escapeHtml($("newStreet").value || "-")}<br><b>Telefon:</b> ${escapeHtml($("newPhone").value || "-")}<br><b>E-Mail:</b> ${escapeHtml($("newEmail").value || "-")}</p>`;
+ const rows = items.length ? items.map(i => `<tr><td>${i.amount}</td><td>${escapeHtml(i.id)}</td><td>${escapeHtml(i.name)}</td></tr>`).join("") : `<tr><td colspan="3">Keine Artikel erfasst</td></tr>`;
  return `<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Bestellung Außendienst</title><style>
  body{font-family:Arial,Helvetica,sans-serif;margin:34px;color:#222}.head{border-bottom:3px solid #d7b983;padding-bottom:14px;margin-bottom:24px}.brand{font-size:30px;font-weight:900;letter-spacing:1px}.sub{font-size:13px;letter-spacing:5px;color:#8b6a35;font-weight:700;margin-top:4px}h1{font-size:22px;margin:24px 0 10px}h2{font-size:16px;margin-top:22px;border-bottom:1px solid #ddd;padding-bottom:6px}table{width:100%;border-collapse:collapse;margin-top:10px}th{background:#222;color:white;text-align:left;padding:9px}td{border:1px solid #ccc;padding:9px}.note{background:#f6f0e4;border:1px solid #d7b983;padding:10px;border-radius:6px}.footer{margin-top:34px;font-size:12px;color:#666;border-top:1px solid #ddd;padding-top:10px}@media print{button{display:none} body{margin:24px}}</style></head><body>
  <div class="head"><div class="brand">ESCHENBACHER</div><div class="sub">PRIVATBRAUEREI</div></div>
- <h1>Bestellung Außendienst</h1><h2>Kunde</h2>${customerHtml}<h2>Lieferwunsch</h2><p>${$("delivery").value || "-"}</p>
+ <h1>Bestellung Außendienst</h1><h2>Kunde</h2>${customerHtml}<h2>Lieferwunsch</h2><p>${escapeHtml($("delivery").value || "-")}</p>
  <h2>Bestellung</h2><table><thead><tr><th style="width:80px">Menge</th><th style="width:100px">Art.-Nr.</th><th>Artikel</th></tr></thead><tbody>${rows}</tbody></table>
- <h2>Bemerkung</h2><div class="note">${$("note").value || "-"}</div><h2>Aufgenommen von</h2><p>${$("sender").value || "-"}</p>
+ <h2>Bemerkung</h2><div class="note">${escapeHtml($("note").value || "-")}</div><h2>Aufgenommen von</h2><p>${escapeHtml($("sender").value || "-")}</p>
  <h2>Systemhinweis</h2><p>Diese Bestellung wurde automatisch durch das Eschenbacher Bestelltool erzeugt.<br>Bitte nicht auf diese E-Mail antworten.</p>
  <div class="footer">Automatisch erzeugt durch das Eschenbacher Bestelltool · Zielmail: info@eschenbacher.de<br>Bitte nicht auf diese E-Mail antworten.</div>
  <button onclick="window.print()" style="margin-top:24px;padding:12px 18px;font-weight:bold">Drucken / als PDF speichern</button>
@@ -617,19 +650,19 @@ function getStructuredOrderData(){
 function buildEmailHtml(){
   const items = orderItems();
   const customerBlock = mode==="existing" && selectedCustomer
-   ? `<p><b>Kundennummer:</b> ${selectedCustomer.id}<br>
-      <b>Kunde:</b> ${selectedCustomer.name}<br>
-      <b>Zusatz/Markt:</b> ${selectedCustomer.name3 || "-"}<br>
-      <b>Adresse:</b> ${selectedCustomer.zip} ${selectedCustomer.city}, ${selectedCustomer.street}</p>`
+   ? `<p><b>Kundennummer:</b> ${escapeHtml(selectedCustomer.id)}<br>
+      <b>Kunde:</b> ${escapeHtml(selectedCustomer.name)}<br>
+      <b>Zusatz/Markt:</b> ${escapeHtml(selectedCustomer.name3 || "-")}<br>
+      <b>Adresse:</b> ${escapeHtml(selectedCustomer.zip)} ${escapeHtml(selectedCustomer.city)}, ${escapeHtml(selectedCustomer.street)}</p>`
    : `<p><b>NEUKUNDE</b><br>
-      <b>Firma:</b> ${$("newCompany").value || "-"}<br>
-      <b>Ansprechpartner:</b> ${$("newContact").value || "-"}<br>
-      <b>Adresse:</b> ${$("newZip").value || "-"} ${$("newCity").value || "-"}, ${$("newStreet").value || "-"}<br>
-      <b>Telefon:</b> ${$("newPhone").value || "-"}<br>
-      <b>E-Mail:</b> ${$("newEmail").value || "-"}</p>`;
+      <b>Firma:</b> ${escapeHtml($("newCompany").value || "-")}<br>
+      <b>Ansprechpartner:</b> ${escapeHtml($("newContact").value || "-")}<br>
+      <b>Adresse:</b> ${escapeHtml($("newZip").value || "-")} ${escapeHtml($("newCity").value || "-")}, ${escapeHtml($("newStreet").value || "-")}<br>
+      <b>Telefon:</b> ${escapeHtml($("newPhone").value || "-")}<br>
+      <b>E-Mail:</b> ${escapeHtml($("newEmail").value || "-")}</p>`;
 
   const rows = items.length
-    ? items.map(i => `<tr><td style="padding:8px;border:1px solid #ddd;">${i.amount}</td><td style="padding:8px;border:1px solid #ddd;">${i.id}</td><td style="padding:8px;border:1px solid #ddd;">${i.name}</td></tr>`).join("")
+    ? items.map(i => `<tr><td style="padding:8px;border:1px solid #ddd;">${i.amount}</td><td style="padding:8px;border:1px solid #ddd;">${escapeHtml(i.id)}</td><td style="padding:8px;border:1px solid #ddd;">${escapeHtml(i.name)}</td></tr>`).join("")
     : `<tr><td colspan="3" style="padding:8px;border:1px solid #ddd;">Keine Artikel erfasst</td></tr>`;
 
   return `
@@ -645,7 +678,7 @@ function buildEmailHtml(){
     ${customerBlock}
 
     <h3 style="border-bottom:1px solid #ddd;padding-bottom:6px;">Lieferwunsch</h3>
-    <p>${$("delivery").value || "-"}</p>
+    <p>${escapeHtml($("delivery").value || "-")}</p>
 
     <h3 style="border-bottom:1px solid #ddd;padding-bottom:6px;">Bestellung</h3>
     <table style="width:100%;border-collapse:collapse;">
@@ -660,10 +693,10 @@ function buildEmailHtml(){
     </table>
 
     <h3 style="border-bottom:1px solid #ddd;padding-bottom:6px;">Bemerkung</h3>
-    <div style="background:#f6f0e4;border:1px solid #d7b983;padding:10px;border-radius:6px;">${$("note").value || "-"}</div>
+    <div style="background:#f6f0e4;border:1px solid #d7b983;padding:10px;border-radius:6px;">${escapeHtml($("note").value || "-")}</div>
 
     <h3 style="border-bottom:1px solid #ddd;padding-bottom:6px;">Aufgenommen von</h3>
-    <p>${$("sender").value || "-"}</p>
+    <p>${escapeHtml($("sender").value || "-")}</p>
 
     <p style="margin-top:28px;font-size:12px;color:#666;border-top:1px solid #ddd;padding-top:10px;">
       Automatisch erzeugt durch das Eschenbacher Bestelltool.<br>
@@ -704,6 +737,7 @@ $("realSendInfoBtn").onclick = async () => {
     await sendPayload(payload);
     result.textContent = "Bestellung erfolgreich versendet. Bitte 'Neue Bestellung starten' wählen.";
     $("resetBtn").classList.remove("hidden");
+    button.dataset.locked = "true";
   } catch (error) {
     if (error.code === "SESSION_EXPIRED") {
       result.textContent = "Anmeldung abgelaufen. Deine Eingaben bleiben erhalten.";
@@ -718,8 +752,9 @@ $("realSendInfoBtn").onclick = async () => {
     }
     result.textContent = "Versand nicht bestätigt. Bestellung lokal gespeichert. Bitte vor erneutem Versand im Maileingang prüfen, ob sie bereits angekommen ist. " + error.message;
     $("resetBtn").classList.remove("hidden");
+    button.dataset.locked = "true";
   } finally {
-    button.disabled = false;
+    button.disabled = button.dataset.locked === "true";
   }
 };
 
@@ -743,6 +778,9 @@ function resetOrderForm(){
   $("sendResult").innerHTML = "";
   $("resetBtn").classList.add("hidden");
   $("realSendInfoBtn").disabled = false;
+  delete $("realSendInfoBtn").dataset.locked;
+  for (const id of ["newCompany", "newContact", "newStreet", "newZip", "newCity", "newPhone", "newEmail"]) $(id).value = "";
+  setMode("existing");
   collapsed = { core:false, otherBottle:true, keg:true, afg:true, promo:true };
   renderProducts();
   window.scrollTo({top:0, behavior:"smooth"});
