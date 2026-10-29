@@ -1,74 +1,73 @@
-const SHEET_ID = "1EdQ3Lb7UUuEdEjF9Z5cWMqYW0XU74-ll_rCQWmP1Te8";
+
 const ALLOWED_SHEETS = ["Kunden", "Artikel"];
 
-function parseGoogleVisualizationResponse(text) {
-  const start = text.indexOf("{");
-  const end = text.lastIndexOf("}");
-  if (start === -1 || end === -1) {
-    throw new Error("Keine gültige Google-Sheets-Antwort erhalten.");
-  }
-
-  const json = JSON.parse(text.slice(start, end + 1));
-  const table = json.table;
-
-  if (!table || !table.cols || !table.rows) {
-    throw new Error("Google-Sheets-Tabelle konnte nicht gelesen werden.");
-  }
-
-  const headers = table.cols.map((col, index) => {
-    const label = String(col.label || "").trim();
-    return label || `Spalte_${index + 1}`;
-  });
-
-  return table.rows.map(row => {
-    const obj = {};
-    headers.forEach((header, index) => {
-      const cell = row.c && row.c[index] ? row.c[index] : null;
-      obj[header] = cell && cell.v !== undefined && cell.v !== null ? cell.v : "";
-    });
-    return obj;
-  }).filter(row => Object.values(row).some(value => String(value).trim() !== ""));
-}
-
 export default async function handler(req, res) {
-  try {
-    const sheet = String(req.query.sheet || "").trim();
+  res.setHeader("Cache-Control", "no-store, max-age=0");
 
-    if (!ALLOWED_SHEETS.includes(sheet)) {
-      return res.status(400).json({
-        success: false,
-        error: "Ungültiger Tabellenname. Erlaubt sind: Kunden, Artikel."
-      });
-    }
-
-    const url =
-      `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq` +
-      `?tqx=out:json&sheet=${encodeURIComponent(sheet)}&t=${Date.now()}`;
-
-    const response = await fetch(url, {
-      headers: {
-        "User-Agent": "Eschenbacher-Bestelltool/1.0"
-      }
+  if (req.method !== "GET") {
+    return res.status(405).json({
+      success: false,
+      error: "Methode nicht erlaubt"
     });
+  }
 
-    const text = await response.text();
+  const sheet = String(req.query.sheet || "").trim();
 
-    if (!response.ok) {
-      return res.status(response.status).json({
-        success: false,
-        error: "Google Sheets konnte nicht geladen werden.",
-        details: text.slice(0, 500)
-      });
-    }
+  if (!ALLOWED_SHEETS.includes(sheet)) {
+    return res.status(400).json({
+      success: false,
+      error: "Ungültiger Tabellenname"
+    });
+  }
 
-    const data = parseGoogleVisualizationResponse(text);
+  const url = process.env.STAMMDATEN_API_URL;
+  const token = process.env.STAMMDATEN_API_SECRET;
 
-    res.setHeader("Cache-Control", "no-store, max-age=0");
-    return res.status(200).json(data);
-  } catch (error) {
+  if (!url || !token) {
     return res.status(500).json({
       success: false,
-      error: error?.message || "Fehler beim Laden der Google-Sheets-Daten."
+      error: "Stammdaten-Schnittstelle nicht konfiguriert"
+    });
+  }
+
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "text/plain;charset=utf-8"
+      },
+      body: JSON.stringify({ sheet, token }),
+      redirect: "follow",
+      cache: "no-store"
+    });
+
+    if (!response.ok) {
+      throw new Error("Stammdaten-API nicht erreichbar");
+    }
+
+    const result = await response.json();
+
+    if (!result.success || !Array.isArray(result.data)) {
+      throw new Error("Stammdaten-API hat keine gültigen Daten geliefert");
+    }
+
+    const data = sheet === "Artikel"
+      ? result.data.map(artikel => ({
+          ArtNr: artikel.ArtNr,
+          Name: artikel.Name,
+          Kategorie: artikel.Bestellgruppe,
+          Bestellgruppe: artikel.Bestellgruppe
+        }))
+      : result.data;
+
+    return res.status(200).json(data);
+
+  } catch (error) {
+    console.error("Stammdatenfehler:", error.message);
+
+    return res.status(502).json({
+      success: false,
+      error: "Stammdaten konnten nicht geladen werden"
     });
   }
 }
