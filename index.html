@@ -419,6 +419,7 @@ function savePendingOrders(list){
 
 function addPendingOrder(payload){
   const list = getPendingOrders();
+  if (list.some(item => item.payload?.orderId && item.payload.orderId === payload.orderId)) return;
   list.push({
     id: Date.now(),
     createdAt: new Date().toISOString(),
@@ -427,44 +428,53 @@ function addPendingOrder(payload){
   savePendingOrders(list);
 }
 
-async function sendPayload(payload){
-  const response = await fetch("/api/send", {
-    method: "POST",
-    headers: {"Content-Type":"application/json"},
-    body: JSON.stringify(payload)
-  });
-
-  let data = {};
-  try{
-    data = await response.json();
-  }catch(_){}
-
-  
-if (response.status === 401) {
-  const error = new Error(
-    "Deine Anmeldung ist abgelaufen. Bitte melde dich erneut an."
-  );
-  error.code = "SESSION_EXPIRED";
-  throw error;
-}
-
-if (!response.ok || !data.success) {
-  throw new Error(
-    data.error || data.message || "Unbekannter Sendefehler"
-  );
-}
-
+async function sendPayload(payload) {
+  let response;
+  try {
+    response = await fetch("/api/send", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(payload)
+    });
+  } catch (cause) {
+    const error = new Error("Netzwerkfehler: Versandstatus unbekannt. Bitte vor erneutem Versand den Maileingang prüfen.");
+    error.code = "UNKNOWN_DELIVERY";
+    throw error;
   }
 
+  let data = {};
+  try { data = await response.json(); } catch (_) {}
+
+  if (response.status === 401) {
+    const error = new Error("Deine Anmeldung ist abgelaufen. Bitte melde dich erneut an.");
+    error.code = "SESSION_EXPIRED";
+    throw error;
+  }
+  if (!response.ok || !data.success) {
+    const error = new Error(data.error || data.message || "Versandstatus unklar. Bitte vor erneutem Versand den Maileingang prüfen.");
+    error.code = "UNKNOWN_DELIVERY";
+    throw error;
+  }
   return data;
+}
+
+function zeigeAnmeldung(hinweis) {
+  $("bestellApp").classList.add("hidden");
+  $("loginBox").classList.remove("hidden");
+  $("loginStatus").textContent = hinweis || "Bitte erneut anmelden.";
+  $("loginPassword").value = "";
+  $("loginPassword").focus();
 }
 
 async function syncPendingOrders(){
   const pending = getPendingOrders();
   const result = $("sendResult");
+  if (syncPendingOrders.running) return;
+  syncPendingOrders.running = true;
 
   if(pending.length === 0){
     updatePendingStatus();
+    syncPendingOrders.running = false;
     return;
   }
 
@@ -501,6 +511,7 @@ for (let i = 0; i < pending.length; i++) {
 
 
   savePendingOrders(remaining);
+  syncPendingOrders.running = false;
 
 if (anmeldungAbgelaufen) {
   $("bestellApp").classList.add("hidden");
@@ -662,79 +673,60 @@ function buildEmailHtml(){
 }
 
 $("realSendInfoBtn").onclick = async () => {
- const result = $("sendResult");
- result.classList.remove("hidden");
-
- if(mode === "existing" && !selectedCustomer){
-   result.innerHTML = `<b>⚠️ Kein Kunde ausgewählt</b><br>Bitte zuerst einen Bestandskunden auswählen oder auf Neukunde wechseln.`;
-   return;
- }
-
- if(orderItems().length === 0){
-   result.innerHTML = `<b>⚠️ Keine Artikel erfasst</b><br>Bitte mindestens einen Artikel mit Menge größer 0 erfassen.`;
-   return;
- }
-
- result.innerHTML = `<b>⏳ Bestellung wird gesendet...</b>`;
-
-if (!aktuelleBestellId) {
-  aktuelleBestellId = neueBestellId();
-} 
-const payload = {
-  orderId: aktuelleBestellId,
-  subject: `Neue Bestellung – ${getCustomerNameForSubject()}`,
-  html: buildEmailHtml(),
-  text: buildMail(),
-  cc: parseEmailList($("cc").value),
-  orderData: getStructuredOrderData()
-};
-
-
- try{
-   await sendPayload(payload);
-
-   result.innerHTML = `<b>✅ Bestellung wurde gesendet</b><br><br>An: info@eschenbacher.de<br>${payload.cc.length ? "CC: " + payload.cc.join(", ") + "<br>" : ""}<br>Betreff: ${payload.subject}<br><br>Du kannst jetzt direkt eine neue Bestellung starten.`;
-   $("resetBtn").classList.remove("hidden");
- 
-}catch(error){
-
-  
-}catch(error){
-
-  if (error.code === "SESSION_EXPIRED") {
-    result.textContent =
-      "⚠️ Deine Anmeldung ist abgelaufen. Bitte melde dich erneut an. Deine bisherige Eingabe bleibt erhalten.";
-
+  const button = $("realSendInfoBtn");
+  const result = $("sendResult");
+  result.classList.remove("hidden");
+  if (button.disabled) return;
+  if (mode === "existing" && !selectedCustomer) {
+    result.textContent = "Bitte zuerst einen Bestandskunden auswählen oder auf Neukunde wechseln.";
     return;
   }
-
-  addPendingOrder(payload);
-
-  result.textContent =
-    "📦 Bestellung wurde im Offline-Puffer gespeichert. " +
-    "Sie konnte gerade nicht gesendet werden. " +
-    "Grund: " + (error.message || error);
-
-  $("resetBtn").classList.remove("hidden");
-}
-
-
-  addPendingOrder(payload);
-
-  result.textContent =
-    "📦 Bestellung wurde im Offline-Puffer gespeichert. " +
-    "Sie konnte gerade nicht gesendet werden. " +
-    "Grund: " + (error.message || error);
-
-  $("resetBtn").classList.remove("hidden");
-}
-
+  if (mode === "new" && !$("newCompany").value.trim()) {
+    result.textContent = "Bitte die Firma des Neukunden eintragen.";
+    return;
+  }
+  if (!orderItems().length) {
+    result.textContent = "Bitte mindestens einen Artikel mit Menge größer 0 erfassen.";
+    return;
+  }
+  if (!aktuelleBestellId) aktuelleBestellId = neueBestellId();
+  const payload = {
+    orderId: aktuelleBestellId,
+    subject: `Neue Bestellung – ${getCustomerNameForSubject()}`,
+    html: buildEmailHtml(),
+    text: buildMail(),
+    cc: parseEmailList($("cc").value),
+    orderData: getStructuredOrderData()
+  };
+  button.disabled = true;
+  result.textContent = "Bestellung wird gesendet...";
+  try {
+    await sendPayload(payload);
+    result.textContent = "Bestellung erfolgreich versendet. Bitte 'Neue Bestellung starten' wählen.";
+    $("resetBtn").classList.remove("hidden");
+  } catch (error) {
+    if (error.code === "SESSION_EXPIRED") {
+      result.textContent = "Anmeldung abgelaufen. Deine Eingaben bleiben erhalten.";
+      zeigeAnmeldung("Bitte erneut anmelden, um die Bestellung zu senden.");
+      return;
+    }
+    // Bei unklarer Bestätigung könnte die E-Mail bereits angekommen sein.
+    // Deshalb nicht automatisch erneut senden und nicht mehrfach puffern.
+    const pending = getPendingOrders();
+    if (!pending.some(item => item.payload?.orderId === payload.orderId)) {
+      addPendingOrder(payload);
+    }
+    result.textContent = "Versand nicht bestätigt. Bestellung lokal gespeichert. Bitte vor erneutem Versand im Maileingang prüfen, ob sie bereits angekommen ist. " + error.message;
+    $("resetBtn").classList.remove("hidden");
+  } finally {
+    button.disabled = false;
+  }
 };
-
 
 function resetOrderForm(){
   selectedCustomer = null;
   qty = {};
+  aktuelleBestellId = null;
   $("customerSearch").value = "";
   $("customerResults").innerHTML = "";
   $("selectedCustomer").classList.add("hidden");
@@ -750,7 +742,8 @@ function resetOrderForm(){
   $("sendResult").classList.add("hidden");
   $("sendResult").innerHTML = "";
   $("resetBtn").classList.add("hidden");
-  collapsed = { core:false, otherBottle:true, keg:true, promo:true };
+  $("realSendInfoBtn").disabled = false;
+  collapsed = { core:false, otherBottle:true, keg:true, afg:true, promo:true };
   renderProducts();
   window.scrollTo({top:0, behavior:"smooth"});
 }
