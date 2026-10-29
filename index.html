@@ -505,10 +505,11 @@ function updatePendingStatus(){
   }
 }
 
+
 window.addEventListener("online", () => {
   updatePendingStatus();
-  syncPendingOrders();
 });
+
 window.addEventListener("offline", updatePendingStatus);
 
 
