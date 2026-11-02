@@ -1,7 +1,6 @@
 
 import { istAngemeldet } from "./_auth.js";
 
-
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
 
@@ -13,15 +12,15 @@ export default async function handler(req, res) {
   }
 
   if (req.method !== "POST") {
-
     return res.status(405).json({
       success: false,
-      message: "Method not allowed"
+      error: "Method not allowed"
     });
   }
 
   try {
     const {
+      orderId,
       subject,
       html,
       text,
@@ -29,10 +28,99 @@ export default async function handler(req, res) {
       orderData
     } = req.body || {};
 
-    if (!subject || !html) {
+    if (
+      !subject ||
+      !html ||
+      !orderData ||
+      !Array.isArray(orderData.items) ||
+      !orderData.items.length ||
+      !/^[0-9a-f-]{36}$/i.test(String(orderId || ""))
+    ) {
       return res.status(400).json({
         success: false,
-        error: "Subject und HTML-Inhalt fehlen."
+        error: "Unvollständige Bestelldaten oder ungültige Bestell-ID."
+      });
+    }
+
+    const apiUrl = process.env.BESTELL_API_URL;
+    const apiSecret = process.env.BESTELL_API_SECRET;
+
+    if (!apiUrl || !apiSecret) {
+      return res.status(503).json({
+        success: false,
+        error: "Neue Bestell-API ist nicht vollständig konfiguriert."
+      });
+    }
+
+    // Bestellung zuerst in Google Sheets speichern.
+    let storageResponse;
+    let storageData;
+
+    try {
+      storageResponse = await fetch(apiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "text/plain;charset=utf-8"
+        },
+        body: JSON.stringify({
+          type: "saveOrder",
+          token: apiSecret,
+          orderId,
+          orderData
+        }),
+        redirect: "follow",
+        signal: AbortSignal.timeout(20000)
+      });
+
+      const responseText = await storageResponse.text();
+
+      try {
+        storageData = JSON.parse(responseText);
+      } catch {
+        throw new Error(
+          "Google Sheets hat keine gültige JSON-Antwort geliefert."
+        );
+      }
+
+    } catch (error) {
+      console.error("Bestellspeicherung nicht bestätigt:", error);
+
+      return res.status(502).json({
+        success: false,
+        error:
+          "Bestellspeicherung konnte nicht bestätigt werden. " +
+          "Bitte vor erneutem Senden die Bestell-ID in Google Sheets prüfen.",
+        orderId
+      });
+    }
+
+    if (
+      !storageResponse.ok ||
+      storageData?.success !== true ||
+      storageData?.orderId !== orderId
+    ) {
+      console.error(
+        "Bestellspeicherung abgelehnt:",
+        storageResponse.status,
+        storageData
+      );
+
+      return res.status(502).json({
+        success: false,
+        error: "Google Sheets hat die Bestellspeicherung nicht bestätigt.",
+        orderId
+      });
+    }
+
+    // Bereits gespeicherte Bestellungen nicht erneut mailen.
+    if (storageData.duplicate === true) {
+      return res.status(200).json({
+        success: true,
+        duplicate: true,
+        orderId,
+        message:
+          "Bestellung war bereits gespeichert. " +
+          "Keine weitere E-Mail versendet."
       });
     }
 
@@ -44,14 +132,9 @@ export default async function handler(req, res) {
       "info@eschenbacher.de"
     ];
 
-    // Feste interne Kopien
     const INTERNAL_CC = [
       "o.mahr@eschenbacher.de"
     ];
-
-    // =========================================
-    // CC AUS FORMULAR
-    // =========================================
 
     const userCcList = Array.isArray(cc)
       ? cc
@@ -67,19 +150,15 @@ export default async function handler(req, res) {
     ];
 
     // =========================================
-    // MAIL PAYLOAD
+    // E-MAIL
     // =========================================
 
     const payload = {
       from:
         "Eschenbacher Bestelltool <noreply@mail.eschenbacherbier.de>",
-
       to: INTERNAL_TO,
-
       subject,
-
       html,
-
       text:
         text ||
         "Neue Bestellung über das Eschenbacher Bestelltool."
@@ -89,90 +168,73 @@ export default async function handler(req, res) {
       payload.cc = finalCcList;
     }
 
-    // =========================================
-    // MAIL SENDEN
-    // =========================================
+    let mailResponse;
+    let mailData;
 
-    const response = await fetch(
-      "https://api.resend.com/emails",
-      {
-        method: "POST",
+    try {
+      mailResponse = await fetch(
+        "https://api.resend.com/emails",
+        {
+          method: "POST",
+          headers: {
+            Authorization:
+              `Bearer ${process.env.RESEND_API_KEY}`,
+            "Content-Type": "application/json",
+            "Idempotency-Key": `order-${orderId}`
+          },
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(20000)
+        }
+      );
 
-        headers: {
-          Authorization:
-            `Bearer ${process.env.RESEND_API_KEY}`,
+      mailData = await mailResponse.json();
 
-          "Content-Type": "application/json"
-        },
+    } catch (error) {
+      console.error(
+        "Bestellung gespeichert, Mailstatus unklar:",
+        error
+      );
 
-        body: JSON.stringify(payload)
-      }
-    );
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      return res.status(response.status).json({
+      return res.status(502).json({
         success: false,
-
+        stored: true,
+        orderId,
         error:
-          data?.message ||
-          data?.error ||
-          "Resend konnte die E-Mail nicht senden.",
-
-        details: data
+          "Bestellung gespeichert, aber E-Mail-Versand " +
+          "nicht bestätigt. Bitte Bestellung manuell prüfen, " +
+          "nicht erneut absenden."
       });
     }
 
-    // =========================================
-    // BESTELLUNG IN GOOGLE SHEETS SPEICHERN
-    // =========================================
+    if (!mailResponse.ok) {
+      console.error(
+        "Bestellung gespeichert, E-Mail abgelehnt:",
+        mailData
+      );
 
-    if (process.env.SCRIPT_API_URL && orderData) {
-
-      try {
-
-        await fetch(process.env.SCRIPT_API_URL, {
-          method: "POST",
-
-          headers: {
-            "Content-Type": "application/json"
-          },
-
-          body: JSON.stringify({
-            type: "saveOrder",
-            orderData
-          })
-        });
-
-      } catch (sheetError) {
-
-        console.error(
-          "Mail gesendet, aber Speicherung in Google Sheets fehlgeschlagen:",
-          sheetError
-        );
-
-      }
+      return res.status(502).json({
+        success: false,
+        stored: true,
+        orderId,
+        error:
+          "Bestellung gespeichert, aber E-Mail konnte " +
+          "nicht versendet werden. Bitte manuell prüfen, " +
+          "nicht erneut absenden."
+      });
     }
-
-    // =========================================
-    // ERFOLG
-    // =========================================
 
     return res.status(200).json({
       success: true,
-      data
+      orderId,
+      data: mailData
     });
 
   } catch (error) {
+    console.error("Fehler in send.js:", error);
 
     return res.status(500).json({
       success: false,
-
-      error:
-        error?.message ||
-        "Serverfehler beim Senden."
+      error: "Serverfehler bei der Bestellübertragung."
     });
-
   }
 }
