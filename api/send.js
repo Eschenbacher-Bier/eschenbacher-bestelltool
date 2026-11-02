@@ -113,16 +113,7 @@ export default async function handler(req, res) {
     }
 
     // Bereits gespeicherte Bestellungen nicht erneut mailen.
-    if (storageData.duplicate === true) {
-      return res.status(200).json({
-        success: true,
-        duplicate: true,
-        orderId,
-        message:
-          "Bestellung war bereits gespeichert. " +
-          "Keine weitere E-Mail versendet."
-      });
-    }
+   
 
     // =========================================
     // EMPFÄNGER
