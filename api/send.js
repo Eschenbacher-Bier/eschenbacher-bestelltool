@@ -170,8 +170,7 @@ export default async function handler(req, res) {
           headers: {
             Authorization:
               `Bearer ${process.env.RESEND_API_KEY}`,
-            "Content-Type": "application/json",
-            "Idempotency-Key": `order-${orderId}`
+            "Content-Type": "application/json"
           },
           body: JSON.stringify(payload),
           signal: AbortSignal.timeout(20000)
