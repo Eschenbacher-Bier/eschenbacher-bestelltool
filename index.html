@@ -38,8 +38,41 @@ pre{white-space:pre-wrap;background:#fff;border:1px solid var(--line);border-rad
 .hidden{display:none}
 </style>
 </head>
+
 <body>
-<div class="app">
+
+<div id="loginBox" class="app">
+  <div class="header">
+    <div class="logo-text">ESCHENBACHER</div>
+    <div class="sub">PRIVATBRAUEREI</div>
+    <h1>Bestelltool</h1>
+  </div>
+
+  <div class="card">
+    <h2>Mitarbeiteranmeldung</h2>
+    <p class="small">
+      Bitte mit dem gemeinsamen Mitarbeiterpasswort anmelden.
+    </p>
+
+    <form id="loginForm">
+      <label for="loginPassword">Passwort</label>
+      <input
+        id="loginPassword"
+        type="password"
+        autocomplete="current-password"
+        required
+      >
+      <button class="btn" type="submit">
+        Anmelden
+      </button>
+    </form>
+
+    <div id="loginStatus" class="notice"></div>
+  </div>
+</div>
+
+<div id="bestellApp" class="app hidden">
+
   <div class="header">
     <div class="logo-text">ESCHENBACHER</div>
     <div class="sub">PRIVATBRAUEREI</div>
@@ -123,9 +156,18 @@ let products = [];
 let mode = "existing";
 let selectedCustomer = null;
 let qty = {};
+let aktuelleBestellId = null;  
 let collapsed = { core:false, otherBottle:true, keg:true, afg:true, promo:true };
 
 const $ = id => document.getElementById(id);
+
+// Daten aus Tabellen und Formulareingaben vor HTML-Einfügung schützen.
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, character => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  })[character]);
+}
+
 
 function normalizeKey(obj, possibleKeys){
   for(const key of possibleKeys){
@@ -168,7 +210,9 @@ async function loadSheetData(){
   products = productResult.data.map(row => {
     const category = normalizeKey(row, ["Kategorie", "Gruppe", "cat"]).toLowerCase();
     return {
-      cat: category.includes("afg") ? "afg" :
+      
+cat: (category.includes("afg") || category.includes("alkoholfreie")) ? "afg" :
+
            category.includes("fass") ? "keg" :
            (category.includes("werbemittel") || category.includes("werbung") || category.includes("promo")) ? "promo" :
            "bottle",
@@ -219,7 +263,7 @@ function renderCustomerSearch(){
  results.forEach(c=>{
    const div = document.createElement("div");
    div.className = "customer-result";
-   div.innerHTML = `<b>${c.id} · ${c.name}</b><span>${c.name3 ? c.name3 + " · " : ""}${c.zip} ${c.city}, ${c.street}</span>`;
+   div.innerHTML = `<b>${escapeHtml(c.id)} · ${escapeHtml(c.name)}</b><span>${escapeHtml(c.name3 ? c.name3 + " · " : "")}${escapeHtml(c.zip)} ${escapeHtml(c.city)}, ${escapeHtml(c.street)}</span>`;
    div.onclick = () => selectCustomer(c);
    box.appendChild(div);
  });
@@ -229,7 +273,7 @@ function selectCustomer(c){
  $("customerSearch").value = "";
  $("customerResults").innerHTML = "";
  $("selectedCustomer").classList.remove("hidden");
- $("selectedCustomer").innerHTML = `<b>Ausgewählter Kunde</b><br>${c.id} · ${c.name}<br><span>${c.name3 ? c.name3 + " · " : ""}${c.zip} ${c.city}, ${c.street}</span><button class="btn secondary" onclick="changeCustomer()">Kunde ändern</button>`;
+ $("selectedCustomer").innerHTML = `<b>Ausgewählter Kunde</b><br>${escapeHtml(c.id)} · ${escapeHtml(c.name)}<br><span>${escapeHtml(c.name3 ? c.name3 + " · " : "")}${escapeHtml(c.zip)} ${escapeHtml(c.city)}, ${escapeHtml(c.street)}</span><button class="btn secondary" onclick="changeCustomer()">Kunde ändern</button>`;
 }
 window.changeCustomer = function(){
  selectedCustomer = null;
@@ -259,12 +303,37 @@ function toggleGroup(g){
  renderProducts();
 }
 function productRow(p){
- const div = document.createElement("div");
- div.className = "row";
- div.innerHTML = `<div class="article"><b>${p.id} · ${p.name}</b><small>${p.cat==="keg" ? "Fassbier" : (p.cat==="promo" ? "Werbemittel" : (p.cat==="afg" ? "Alkoholfreies Getränk" : "Flaschenbier"))}</small></div>
-   <div class="qty"><button type="button" onclick="dec('${p.id}')">−</button><input class="qty-input" inputmode="numeric" pattern="[0-9]*" value="${qty[p.id]||0}" onchange="setQty('${p.id}', this.value)" onfocus="this.select()"><button type="button" onclick="inc('${p.id}')">+</button></div>`;
- return div;
+  const div = document.createElement("div");
+  div.className = "row";
+  const article = document.createElement("div");
+  article.className = "article";
+  const name = document.createElement("b");
+  name.textContent = `${p.id} · ${p.name}`;
+  const kind = document.createElement("small");
+  kind.textContent = p.cat === "keg" ? "Fassbier" : p.cat === "promo" ? "Werbemittel" : p.cat === "afg" ? "Alkoholfreies Getränk" : "Flaschenbier";
+  article.append(name, kind);
+  const quantity = document.createElement("div");
+  quantity.className = "qty";
+  const minus = document.createElement("button");
+  minus.type = "button";
+  minus.textContent = "−";
+  minus.onclick = () => window.dec(p.id);
+  const input = document.createElement("input");
+  input.className = "qty-input";
+  input.inputMode = "numeric";
+  input.pattern = "[0-9]*";
+  input.value = qty[p.id] || 0;
+  input.onchange = () => window.setQty(p.id, input.value);
+  input.onfocus = () => input.select();
+  const plus = document.createElement("button");
+  plus.type = "button";
+  plus.textContent = "+";
+  plus.onclick = () => window.inc(p.id);
+  quantity.append(minus, input, plus);
+  div.append(article, quantity);
+  return div;
 }
+
 function renderProducts(){
  const q = $("articleSearch").value.trim().toLowerCase();
  const groups = ["core","otherBottle","keg","afg","promo"];
@@ -333,7 +402,7 @@ function buildMail(){
 $("previewBtn").onclick = () => {
  const items = orderItems();
  $("summaryCard").classList.remove("hidden");
- $("summary").innerHTML = items.length ? items.map(i=>`<div class="summary-line"><b>${i.amount}x ${i.name}</b><br>Art.-Nr. ${i.id}</div>`).join("") : "<p>Keine Artikel erfasst.</p>";
+ $("summary").innerHTML = items.length ? items.map(i=>`<div class="summary-line"><b>${i.amount}x ${escapeHtml(i.name)}</b><br>Art.-Nr. ${escapeHtml(i.id)}</div>`).join("") : "<p>Keine Artikel erfasst.</p>";
  $("mailPreview").textContent = buildMail();
  window.scrollTo({top:document.body.scrollHeight, behavior:"smooth"});
 };
@@ -341,15 +410,15 @@ $("previewBtn").onclick = () => {
 function buildPdfHtml(){
  const items = orderItems();
  const customerHtml = mode==="existing" && selectedCustomer
-   ? `<p><b>Kundennummer:</b> ${selectedCustomer.id}<br><b>Kunde:</b> ${selectedCustomer.name}<br><b>Zusatz/Markt:</b> ${selectedCustomer.name3 || "-"}<br><b>Adresse:</b> ${selectedCustomer.zip} ${selectedCustomer.city}, ${selectedCustomer.street}</p>`
-   : `<p><b>NEUKUNDE</b><br><b>Firma:</b> ${$("newCompany").value || "-"}<br><b>Ansprechpartner:</b> ${$("newContact").value || "-"}<br><b>Adresse:</b> ${$("newZip").value || "-"} ${$("newCity").value || "-"}, ${$("newStreet").value || "-"}<br><b>Telefon:</b> ${$("newPhone").value || "-"}<br><b>E-Mail:</b> ${$("newEmail").value || "-"}</p>`;
- const rows = items.length ? items.map(i => `<tr><td>${i.amount}</td><td>${i.id}</td><td>${i.name}</td></tr>`).join("") : `<tr><td colspan="3">Keine Artikel erfasst</td></tr>`;
+   ? `<p><b>Kundennummer:</b> ${escapeHtml(selectedCustomer.id)}<br><b>Kunde:</b> ${escapeHtml(selectedCustomer.name)}<br><b>Zusatz/Markt:</b> ${escapeHtml(selectedCustomer.name3 || "-")}<br><b>Adresse:</b> ${escapeHtml(selectedCustomer.zip)} ${escapeHtml(selectedCustomer.city)}, ${escapeHtml(selectedCustomer.street)}</p>`
+   : `<p><b>NEUKUNDE</b><br><b>Firma:</b> ${escapeHtml($("newCompany").value || "-")}<br><b>Ansprechpartner:</b> ${escapeHtml($("newContact").value || "-")}<br><b>Adresse:</b> ${escapeHtml($("newZip").value || "-")} ${escapeHtml($("newCity").value || "-")}, ${escapeHtml($("newStreet").value || "-")}<br><b>Telefon:</b> ${escapeHtml($("newPhone").value || "-")}<br><b>E-Mail:</b> ${escapeHtml($("newEmail").value || "-")}</p>`;
+ const rows = items.length ? items.map(i => `<tr><td>${i.amount}</td><td>${escapeHtml(i.id)}</td><td>${escapeHtml(i.name)}</td></tr>`).join("") : `<tr><td colspan="3">Keine Artikel erfasst</td></tr>`;
  return `<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Bestellung Außendienst</title><style>
  body{font-family:Arial,Helvetica,sans-serif;margin:34px;color:#222}.head{border-bottom:3px solid #d7b983;padding-bottom:14px;margin-bottom:24px}.brand{font-size:30px;font-weight:900;letter-spacing:1px}.sub{font-size:13px;letter-spacing:5px;color:#8b6a35;font-weight:700;margin-top:4px}h1{font-size:22px;margin:24px 0 10px}h2{font-size:16px;margin-top:22px;border-bottom:1px solid #ddd;padding-bottom:6px}table{width:100%;border-collapse:collapse;margin-top:10px}th{background:#222;color:white;text-align:left;padding:9px}td{border:1px solid #ccc;padding:9px}.note{background:#f6f0e4;border:1px solid #d7b983;padding:10px;border-radius:6px}.footer{margin-top:34px;font-size:12px;color:#666;border-top:1px solid #ddd;padding-top:10px}@media print{button{display:none} body{margin:24px}}</style></head><body>
  <div class="head"><div class="brand">ESCHENBACHER</div><div class="sub">PRIVATBRAUEREI</div></div>
- <h1>Bestellung Außendienst</h1><h2>Kunde</h2>${customerHtml}<h2>Lieferwunsch</h2><p>${$("delivery").value || "-"}</p>
+ <h1>Bestellung Außendienst</h1><h2>Kunde</h2>${customerHtml}<h2>Lieferwunsch</h2><p>${escapeHtml($("delivery").value || "-")}</p>
  <h2>Bestellung</h2><table><thead><tr><th style="width:80px">Menge</th><th style="width:100px">Art.-Nr.</th><th>Artikel</th></tr></thead><tbody>${rows}</tbody></table>
- <h2>Bemerkung</h2><div class="note">${$("note").value || "-"}</div><h2>Aufgenommen von</h2><p>${$("sender").value || "-"}</p>
+ <h2>Bemerkung</h2><div class="note">${escapeHtml($("note").value || "-")}</div><h2>Aufgenommen von</h2><p>${escapeHtml($("sender").value || "-")}</p>
  <h2>Systemhinweis</h2><p>Diese Bestellung wurde automatisch durch das Eschenbacher Bestelltool erzeugt.<br>Bitte nicht auf diese E-Mail antworten.</p>
  <div class="footer">Automatisch erzeugt durch das Eschenbacher Bestelltool · Zielmail: info@eschenbacher.de<br>Bitte nicht auf diese E-Mail antworten.</div>
  <button onclick="window.print()" style="margin-top:24px;padding:12px 18px;font-weight:bold">Drucken / als PDF speichern</button>
@@ -363,6 +432,10 @@ $("pdfBtn").onclick = () => {
 
 
 const PENDING_ORDERS_KEY = "esb_pending_orders_v17";
+
+function neueBestellId() {
+  return crypto.randomUUID();
+}
 
 function getPendingOrders(){
   try{
@@ -379,6 +452,7 @@ function savePendingOrders(list){
 
 function addPendingOrder(payload){
   const list = getPendingOrders();
+  if (list.some(item => item.payload?.orderId && item.payload.orderId === payload.orderId)) return;
   list.push({
     id: Date.now(),
     createdAt: new Date().toISOString(),
@@ -387,31 +461,53 @@ function addPendingOrder(payload){
   savePendingOrders(list);
 }
 
-async function sendPayload(payload){
-  const response = await fetch("/api/send", {
-    method: "POST",
-    headers: {"Content-Type":"application/json"},
-    body: JSON.stringify(payload)
-  });
-
-  let data = {};
-  try{
-    data = await response.json();
-  }catch(_){}
-
-  if(!response.ok || !data.success){
-    throw new Error(data.error || data.message || "Unbekannter Sendefehler");
+async function sendPayload(payload) {
+  let response;
+  try {
+    response = await fetch("/api/send", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(payload)
+    });
+  } catch (cause) {
+    const error = new Error("Netzwerkfehler: Versandstatus unbekannt. Bitte vor erneutem Versand den Maileingang prüfen.");
+    error.code = "UNKNOWN_DELIVERY";
+    throw error;
   }
 
+  let data = {};
+  try { data = await response.json(); } catch (_) {}
+
+  if (response.status === 401) {
+    const error = new Error("Deine Anmeldung ist abgelaufen. Bitte melde dich erneut an.");
+    error.code = "SESSION_EXPIRED";
+    throw error;
+  }
+  if (!response.ok || !data.success) {
+    const error = new Error(data.error || data.message || "Versandstatus unklar. Bitte vor erneutem Versand den Maileingang prüfen.");
+    error.code = "UNKNOWN_DELIVERY";
+    throw error;
+  }
   return data;
+}
+
+function zeigeAnmeldung(hinweis) {
+  $("bestellApp").classList.add("hidden");
+  $("loginBox").classList.remove("hidden");
+  $("loginStatus").textContent = hinweis || "Bitte erneut anmelden.";
+  $("loginPassword").value = "";
+  $("loginPassword").focus();
 }
 
 async function syncPendingOrders(){
   const pending = getPendingOrders();
   const result = $("sendResult");
+  if (syncPendingOrders.running) return;
+  syncPendingOrders.running = true;
 
   if(pending.length === 0){
     updatePendingStatus();
+    syncPendingOrders.running = false;
     return;
   }
 
@@ -423,16 +519,52 @@ async function syncPendingOrders(){
   const remaining = [];
   let sent = 0;
 
-  for(const item of pending){
-    try{
-      await sendPayload(item.payload);
-      sent++;
-    }catch(error){
-      remaining.push(item);
+  
+let anmeldungAbgelaufen = false;
+
+for (let i = 0; i < pending.length; i++) {
+  const item = pending[i];
+
+  try {
+    await sendPayload(item.payload);
+    sent++;
+
+  } catch (error) {
+    remaining.push(item);
+
+    if (error.code === "SESSION_EXPIRED") {
+      anmeldungAbgelaufen = true;
+
+      // Noch nicht bearbeitete Bestellungen behalten
+      remaining.push(...pending.slice(i + 1));
+      break;
     }
   }
+}
+
 
   savePendingOrders(remaining);
+  syncPendingOrders.running = false;
+
+if (anmeldungAbgelaufen) {
+  $("bestellApp").classList.add("hidden");
+  $("loginBox").classList.remove("hidden");
+
+  $("loginStatus").textContent =
+    "Deine Anmeldung ist abgelaufen. Bitte melde dich erneut an.";
+
+  $("loginPassword").value = "";
+  $("loginPassword").focus();
+
+  if (result) {
+    result.textContent =
+      "Der Nachversand wurde unterbrochen. " +
+      sent + " Bestellung(en) wurden bestätigt. " +
+      remaining.length + " Bestellung(en) bleiben im Offline-Puffer.";
+  }
+
+  return;
+}
 
   if(result){
     if(remaining.length === 0){
@@ -457,10 +589,11 @@ function updatePendingStatus(){
   }
 }
 
+
 window.addEventListener("online", () => {
   updatePendingStatus();
-  syncPendingOrders();
 });
+
 window.addEventListener("offline", updatePendingStatus);
 
 
@@ -517,19 +650,19 @@ function getStructuredOrderData(){
 function buildEmailHtml(){
   const items = orderItems();
   const customerBlock = mode==="existing" && selectedCustomer
-   ? `<p><b>Kundennummer:</b> ${selectedCustomer.id}<br>
-      <b>Kunde:</b> ${selectedCustomer.name}<br>
-      <b>Zusatz/Markt:</b> ${selectedCustomer.name3 || "-"}<br>
-      <b>Adresse:</b> ${selectedCustomer.zip} ${selectedCustomer.city}, ${selectedCustomer.street}</p>`
+   ? `<p><b>Kundennummer:</b> ${escapeHtml(selectedCustomer.id)}<br>
+      <b>Kunde:</b> ${escapeHtml(selectedCustomer.name)}<br>
+      <b>Zusatz/Markt:</b> ${escapeHtml(selectedCustomer.name3 || "-")}<br>
+      <b>Adresse:</b> ${escapeHtml(selectedCustomer.zip)} ${escapeHtml(selectedCustomer.city)}, ${escapeHtml(selectedCustomer.street)}</p>`
    : `<p><b>NEUKUNDE</b><br>
-      <b>Firma:</b> ${$("newCompany").value || "-"}<br>
-      <b>Ansprechpartner:</b> ${$("newContact").value || "-"}<br>
-      <b>Adresse:</b> ${$("newZip").value || "-"} ${$("newCity").value || "-"}, ${$("newStreet").value || "-"}<br>
-      <b>Telefon:</b> ${$("newPhone").value || "-"}<br>
-      <b>E-Mail:</b> ${$("newEmail").value || "-"}</p>`;
+      <b>Firma:</b> ${escapeHtml($("newCompany").value || "-")}<br>
+      <b>Ansprechpartner:</b> ${escapeHtml($("newContact").value || "-")}<br>
+      <b>Adresse:</b> ${escapeHtml($("newZip").value || "-")} ${escapeHtml($("newCity").value || "-")}, ${escapeHtml($("newStreet").value || "-")}<br>
+      <b>Telefon:</b> ${escapeHtml($("newPhone").value || "-")}<br>
+      <b>E-Mail:</b> ${escapeHtml($("newEmail").value || "-")}</p>`;
 
   const rows = items.length
-    ? items.map(i => `<tr><td style="padding:8px;border:1px solid #ddd;">${i.amount}</td><td style="padding:8px;border:1px solid #ddd;">${i.id}</td><td style="padding:8px;border:1px solid #ddd;">${i.name}</td></tr>`).join("")
+    ? items.map(i => `<tr><td style="padding:8px;border:1px solid #ddd;">${i.amount}</td><td style="padding:8px;border:1px solid #ddd;">${escapeHtml(i.id)}</td><td style="padding:8px;border:1px solid #ddd;">${escapeHtml(i.name)}</td></tr>`).join("")
     : `<tr><td colspan="3" style="padding:8px;border:1px solid #ddd;">Keine Artikel erfasst</td></tr>`;
 
   return `
@@ -545,7 +678,7 @@ function buildEmailHtml(){
     ${customerBlock}
 
     <h3 style="border-bottom:1px solid #ddd;padding-bottom:6px;">Lieferwunsch</h3>
-    <p>${$("delivery").value || "-"}</p>
+    <p>${escapeHtml($("delivery").value || "-")}</p>
 
     <h3 style="border-bottom:1px solid #ddd;padding-bottom:6px;">Bestellung</h3>
     <table style="width:100%;border-collapse:collapse;">
@@ -560,10 +693,10 @@ function buildEmailHtml(){
     </table>
 
     <h3 style="border-bottom:1px solid #ddd;padding-bottom:6px;">Bemerkung</h3>
-    <div style="background:#f6f0e4;border:1px solid #d7b983;padding:10px;border-radius:6px;">${$("note").value || "-"}</div>
+    <div style="background:#f6f0e4;border:1px solid #d7b983;padding:10px;border-radius:6px;">${escapeHtml($("note").value || "-")}</div>
 
     <h3 style="border-bottom:1px solid #ddd;padding-bottom:6px;">Aufgenommen von</h3>
-    <p>${$("sender").value || "-"}</p>
+    <p>${escapeHtml($("sender").value || "-")}</p>
 
     <p style="margin-top:28px;font-size:12px;color:#666;border-top:1px solid #ddd;padding-top:10px;">
       Automatisch erzeugt durch das Eschenbacher Bestelltool.<br>
@@ -573,45 +706,62 @@ function buildEmailHtml(){
 }
 
 $("realSendInfoBtn").onclick = async () => {
- const result = $("sendResult");
- result.classList.remove("hidden");
-
- if(mode === "existing" && !selectedCustomer){
-   result.innerHTML = `<b>⚠️ Kein Kunde ausgewählt</b><br>Bitte zuerst einen Bestandskunden auswählen oder auf Neukunde wechseln.`;
-   return;
- }
-
- if(orderItems().length === 0){
-   result.innerHTML = `<b>⚠️ Keine Artikel erfasst</b><br>Bitte mindestens einen Artikel mit Menge größer 0 erfassen.`;
-   return;
- }
-
- result.innerHTML = `<b>⏳ Bestellung wird gesendet...</b>`;
-
- const payload = {
-   subject: `Neue Bestellung – ${getCustomerNameForSubject()}`,
-   html: buildEmailHtml(),
-   text: buildMail(),
-   cc: parseEmailList($("cc").value),
-   orderData: getStructuredOrderData()
- };
-
- try{
-   await sendPayload(payload);
-
-   result.innerHTML = `<b>✅ Bestellung wurde gesendet</b><br><br>An: info@eschenbacher.de<br>${payload.cc.length ? "CC: " + payload.cc.join(", ") + "<br>" : ""}<br>Betreff: ${payload.subject}<br><br>Du kannst jetzt direkt eine neue Bestellung starten.`;
-   $("resetBtn").classList.remove("hidden");
- }catch(error){
-   addPendingOrder(payload);
-   result.innerHTML = `<b>📦 Bestellung wurde im Offline-Puffer gespeichert</b><br><br>Die Bestellung konnte gerade nicht gesendet werden und wurde lokal auf diesem Gerät gespeichert.<br>Bei Netzverbindung kann sie über „Jetzt senden“ im Offline-Puffer nachgesendet werden.<br><br>Grund: ${error.message || error}`;
-   $("resetBtn").classList.remove("hidden");
- }
+  const button = $("realSendInfoBtn");
+  const result = $("sendResult");
+  result.classList.remove("hidden");
+  if (button.disabled) return;
+  if (mode === "existing" && !selectedCustomer) {
+    result.textContent = "Bitte zuerst einen Bestandskunden auswählen oder auf Neukunde wechseln.";
+    return;
+  }
+  if (mode === "new" && !$("newCompany").value.trim()) {
+    result.textContent = "Bitte die Firma des Neukunden eintragen.";
+    return;
+  }
+  if (!orderItems().length) {
+    result.textContent = "Bitte mindestens einen Artikel mit Menge größer 0 erfassen.";
+    return;
+  }
+  if (!aktuelleBestellId) aktuelleBestellId = neueBestellId();
+  const payload = {
+    orderId: aktuelleBestellId,
+    subject: `Neue Bestellung – ${getCustomerNameForSubject()}`,
+    html: buildEmailHtml(),
+    text: buildMail(),
+    cc: parseEmailList($("cc").value),
+    orderData: getStructuredOrderData()
+  };
+  button.disabled = true;
+  result.textContent = "Bestellung wird gesendet...";
+  try {
+    await sendPayload(payload);
+    result.textContent = "Bestellung erfolgreich versendet. Bitte 'Neue Bestellung starten' wählen.";
+    $("resetBtn").classList.remove("hidden");
+    button.dataset.locked = "true";
+  } catch (error) {
+    if (error.code === "SESSION_EXPIRED") {
+      result.textContent = "Anmeldung abgelaufen. Deine Eingaben bleiben erhalten.";
+      zeigeAnmeldung("Bitte erneut anmelden, um die Bestellung zu senden.");
+      return;
+    }
+    // Bei unklarer Bestätigung könnte die E-Mail bereits angekommen sein.
+    // Deshalb nicht automatisch erneut senden und nicht mehrfach puffern.
+    const pending = getPendingOrders();
+    if (!pending.some(item => item.payload?.orderId === payload.orderId)) {
+      addPendingOrder(payload);
+    }
+    result.textContent = "Versand nicht bestätigt. Bestellung lokal gespeichert. Bitte vor erneutem Versand im Maileingang prüfen, ob sie bereits angekommen ist. " + error.message;
+    $("resetBtn").classList.remove("hidden");
+    button.dataset.locked = "true";
+  } finally {
+    button.disabled = button.dataset.locked === "true";
+  }
 };
-
 
 function resetOrderForm(){
   selectedCustomer = null;
   qty = {};
+  aktuelleBestellId = null;
   $("customerSearch").value = "";
   $("customerResults").innerHTML = "";
   $("selectedCustomer").classList.add("hidden");
@@ -627,15 +777,91 @@ function resetOrderForm(){
   $("sendResult").classList.add("hidden");
   $("sendResult").innerHTML = "";
   $("resetBtn").classList.add("hidden");
-  collapsed = { core:false, otherBottle:true, keg:true, promo:true };
+  $("realSendInfoBtn").disabled = false;
+  delete $("realSendInfoBtn").dataset.locked;
+  for (const id of ["newCompany", "newContact", "newStreet", "newZip", "newCity", "newPhone", "newEmail"]) $(id).value = "";
+  setMode("existing");
+  collapsed = { core:false, otherBottle:true, keg:true, afg:true, promo:true };
   renderProducts();
   window.scrollTo({top:0, behavior:"smooth"});
 }
 $("resetBtn").onclick = resetOrderForm;
 
 
-updatePendingStatus();
-loadSheetData();
+
+async function pruefeAnmeldung() {
+  const loginBox = $("loginBox");
+  const bestellApp = $("bestellApp");
+  const status = $("loginStatus");
+
+  loginBox.classList.remove("hidden");
+  bestellApp.classList.add("hidden");
+  status.textContent = "Anmeldung wird geprüft...";
+
+  try {
+    const response = await fetch("/api/session", {
+      cache: "no-store"
+    });
+
+    if (!response.ok) {
+      throw new Error("Sitzungsprüfung fehlgeschlagen.");
+    }
+
+    const result = await response.json();
+
+    if (result.authenticated === true) {
+      loginBox.classList.add("hidden");
+      bestellApp.classList.remove("hidden");
+      status.textContent = "";
+
+      updatePendingStatus();
+      await loadSheetData();
+    } else {
+      status.textContent = "Bitte mit dem Mitarbeiterpasswort anmelden.";
+    }
+  } catch (error) {
+    status.textContent =
+      "Anmeldung konnte nicht geprüft werden. Bitte später erneut versuchen.";
+  }
+}
+
+$("loginForm").addEventListener("submit", async event => {
+  event.preventDefault();
+
+  const passwort = $("loginPassword").value;
+  const status = $("loginStatus");
+  const button = $("loginForm").querySelector("button");
+
+  button.disabled = true;
+  status.textContent = "Anmeldung läuft...";
+
+  try {
+    const response = await fetch("/api/login", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ password: passwort })
+    });
+
+    const result = await response.json();
+
+    if (!response.ok || !result.success) {
+      throw new Error(result.error || "Anmeldung fehlgeschlagen.");
+    }
+
+    $("loginPassword").value = "";
+    await pruefeAnmeldung();
+
+  } catch (error) {
+    status.textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
+});
+
+pruefeAnmeldung();
+
 </script>
 </body>
 </html>
